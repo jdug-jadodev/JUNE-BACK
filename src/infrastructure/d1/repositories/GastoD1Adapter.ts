@@ -1,5 +1,9 @@
 import type { Gasto } from '../../../domain/entities/Gasto';
-import type { GastoRepositorioPort } from '../../../domain/ports/out/GastoRepositorioPort';
+import type { ResumenMes } from '../../../domain/entities/ResumenMes';
+import type {
+  FiltroGastos,
+  GastoRepositorioPort,
+} from '../../../domain/ports/out/GastoRepositorioPort';
 import { GastoMapper, type GastoRow } from '../mappers/mappers';
 
 const SELECT_BASE = `
@@ -8,22 +12,61 @@ const SELECT_BASE = `
   JOIN users u ON u.id = e.created_by
 `;
 
+interface ResumenMesRow {
+  mes: string;
+  cantidad: number;
+  total_cents: number;
+}
+
 export class GastoD1Adapter implements GastoRepositorioPort {
   constructor(private readonly db: D1Database) {}
 
-  async listar(hogarId: string, updatedAfter?: string): Promise<Gasto[]> {
-    const sql = updatedAfter
-      ? `${SELECT_BASE} WHERE e.household_id = ? AND e.updated_at > ?
-         ORDER BY e.fecha DESC, e.created_at DESC`
-      : `${SELECT_BASE} WHERE e.household_id = ?
-         ORDER BY e.fecha DESC, e.created_at DESC`;
+  async listar(hogarId: string, filtro?: FiltroGastos): Promise<Gasto[]> {
+    const condiciones = ['e.household_id = ?'];
+    const valores: string[] = [hogarId];
 
-    const statement = updatedAfter
-      ? this.db.prepare(sql).bind(hogarId, updatedAfter)
-      : this.db.prepare(sql).bind(hogarId);
+    if (filtro?.updatedAfter) {
+      condiciones.push('e.updated_at > ?');
+      valores.push(filtro.updatedAfter);
+    }
+    if (filtro?.desde) {
+      condiciones.push('e.fecha >= ?');
+      valores.push(filtro.desde);
+    }
+    if (filtro?.hasta) {
+      condiciones.push('e.fecha <= ?');
+      valores.push(filtro.hasta);
+    }
 
-    const { results } = await statement.all<GastoRow>();
+    const sql = `${SELECT_BASE} WHERE ${condiciones.join(' AND ')}
+      ORDER BY e.fecha DESC, e.created_at DESC`;
+
+    const { results } = await this.db
+      .prepare(sql)
+      .bind(...valores)
+      .all<GastoRow>();
     return results.map(GastoMapper.toDomain);
+  }
+
+  async listarMeses(hogarId: string): Promise<ResumenMes[]> {
+    const { results } = await this.db
+      .prepare(
+        `SELECT substr(e.fecha, 1, 7) AS mes,
+                COUNT(*) AS cantidad,
+                SUM(e.monto_cents) AS total_cents
+         FROM expenses e
+         WHERE e.household_id = ?
+         GROUP BY mes
+         ORDER BY mes DESC`,
+      )
+      .bind(hogarId)
+      .all<ResumenMesRow>();
+
+    return results.map((fila) => ({
+      mes: fila.mes,
+      cantidad: fila.cantidad,
+      totalCents: fila.total_cents,
+    }));
   }
 
   async obtener(id: string): Promise<Gasto | null> {

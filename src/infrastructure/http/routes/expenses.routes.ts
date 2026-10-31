@@ -3,18 +3,40 @@ import { z } from 'zod';
 import type { AppEnv } from '../types';
 import { auth } from '../middleware/auth';
 
+const fechaSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+
 const gastoSchema = z.object({
   producto: z.string().min(1),
   montoCents: z.number().int().positive(),
-  fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  fecha: fechaSchema,
+});
+
+const filtroSchema = z.object({
+  desde: fechaSchema.optional(),
+  hasta: fechaSchema.optional(),
 });
 
 export function expensesRoutes(app: Hono<AppEnv>): void {
+  app.get('/households/:hid/expenses/months', auth, async (c) => {
+    const meses = await c.var.container.consultarGastos.meses({
+      hogarId: c.req.param('hid'),
+      usuarioId: c.var.usuarioId,
+    });
+    return c.json(meses);
+  });
+
   app.get('/households/:hid/expenses', auth, async (c) => {
+    const filtro = filtroSchema.parse({
+      desde: c.req.query('desde'),
+      hasta: c.req.query('hasta'),
+    });
+
     const gastos = await c.var.container.consultarGastos.ejecutar({
       hogarId: c.req.param('hid'),
       usuarioId: c.var.usuarioId,
       updatedAfter: c.req.query('updatedAfter'),
+      desde: filtro.desde,
+      hasta: filtro.hasta,
     });
     return c.json(gastos);
   });

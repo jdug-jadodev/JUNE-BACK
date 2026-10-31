@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { buildContainer } from './infrastructure/config/container';
+import type { Env } from './infrastructure/config/env';
+import { RefreshTokenD1Adapter } from './infrastructure/d1/repositories/RefreshTokenD1Adapter';
 import { registerErrorHandler } from './infrastructure/http/middleware/errors';
 import { authRoutes } from './infrastructure/http/routes/auth.routes';
 import { expensesRoutes } from './infrastructure/http/routes/expenses.routes';
@@ -26,4 +28,14 @@ expensesRoutes(app);
 
 registerErrorHandler(app);
 
-export default app;
+export default {
+  fetch: app.fetch,
+  scheduled: async (
+    _controller: ScheduledController,
+    env: Env,
+    ctx: ExecutionContext,
+  ): Promise<void> => {
+    const tokens = new RefreshTokenD1Adapter(env.DB);
+    ctx.waitUntil(tokens.eliminarExpirados(new Date().toISOString()));
+  },
+};
