@@ -10,7 +10,7 @@
     {
       "binding": "DB",
       "database_name": "andromeda-db",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "4a0d37e9-664e-4e4e-a11f-957a70872c5a",
       "migrations_dir": "migrations"
     }
   ]
