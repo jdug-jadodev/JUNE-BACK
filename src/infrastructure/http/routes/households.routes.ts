@@ -19,6 +19,10 @@ const corteSchema = z.object({
   cutoffDay: z.number().int().min(1).max(31),
 });
 
+const accesoSchema = z.object({
+  acceso: z.enum(['LECTURA', 'ESCRITURA']),
+});
+
 export function householdsRoutes(app: Hono<AppEnv>): void {
   app.get('/households', auth, async (c) => {
     const hogares = await c.var.container.gestionarHogar.listar({
@@ -111,6 +115,17 @@ export function householdsRoutes(app: Hono<AppEnv>): void {
       hogarId: c.req.param('hid'),
       miembroId: c.req.param('mid'),
       usuarioId: c.var.usuarioId,
+    });
+    return c.body(null, 204);
+  });
+
+  app.patch('/households/:hid/members/:mid/access', auth, async (c) => {
+    const body = accesoSchema.parse(await c.req.json());
+    await c.var.container.gestionarMiembros.cambiarAcceso({
+      hogarId: c.req.param('hid'),
+      miembroId: c.req.param('mid'),
+      usuarioId: c.var.usuarioId,
+      acceso: body.acceso,
     });
     return c.body(null, 204);
   });

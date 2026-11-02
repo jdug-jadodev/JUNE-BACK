@@ -32,6 +32,7 @@ function crearCaso(rol: 'ADMIN' | 'MIEMBRO') {
       hogarId: 'h1',
       usuarioId: 'u1',
       rol,
+      acceso: 'ESCRITURA',
       joinedAt: '2026-10-30T00:00:00.000Z',
     }),
   } as unknown as MiembroRepositorioPort;

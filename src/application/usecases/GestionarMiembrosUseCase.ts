@@ -1,5 +1,6 @@
 import type { Hogar } from '../../domain/entities/Hogar';
 import type { Miembro } from '../../domain/entities/Miembro';
+import type { Acceso } from '../../domain/enums/Acceso';
 import type { GestionarMiembrosPort } from '../../domain/ports/in/GestionarMiembrosPort';
 import type { HogarRepositorioPort } from '../../domain/ports/out/HogarRepositorioPort';
 import type { MiembroRepositorioPort } from '../../domain/ports/out/MiembroRepositorioPort';
@@ -34,6 +35,7 @@ export class GestionarMiembrosUseCase implements GestionarMiembrosPort {
       hogarId: hogar.id,
       usuarioId: input.usuarioId,
       rol: 'MIEMBRO',
+      acceso: 'ESCRITURA',
       joinedAt: new Date().toISOString(),
     });
 
@@ -52,5 +54,26 @@ export class GestionarMiembrosUseCase implements GestionarMiembrosPort {
     }
 
     await this.miembros.eliminar(input.miembroId);
+  }
+
+  async cambiarAcceso(input: {
+    hogarId: string;
+    miembroId: string;
+    usuarioId: string;
+    acceso: Acceso;
+  }): Promise<void> {
+    const solicitante = await this.miembros.buscar(input.hogarId, input.usuarioId);
+    if (!solicitante || solicitante.rol !== 'ADMIN') throw new PermisoDenegadoError();
+
+    const objetivo = (await this.miembros.listar(input.hogarId)).find(
+      (miembro) => miembro.id === input.miembroId,
+    );
+    if (!objetivo) throw new NoEncontradoError('Miembro no encontrado');
+
+    if (objetivo.rol === 'ADMIN') {
+      throw new ConflictoError('El administrador siempre puede escribir');
+    }
+
+    await this.miembros.actualizarAcceso(input.miembroId, input.acceso);
   }
 }

@@ -2,6 +2,7 @@ import type { Gasto } from '../../../domain/entities/Gasto';
 import type { Hogar } from '../../../domain/entities/Hogar';
 import type { Miembro } from '../../../domain/entities/Miembro';
 import type { Usuario } from '../../../domain/entities/Usuario';
+import type { Acceso } from '../../../domain/enums/Acceso';
 import type { Rol } from '../../../domain/enums/Rol';
 
 export interface UsuarioRow {
@@ -27,6 +28,7 @@ export interface MiembroRow {
   household_id: string;
   user_id: string;
   role: string;
+  access_level: string;
   joined_at: string;
   nombre: string | null;
   email: string | null;
@@ -78,6 +80,7 @@ export const MiembroMapper = {
       nombre: row.nombre ?? undefined,
       email: row.email ?? undefined,
       rol: row.role as Rol,
+      acceso: (row.access_level as Acceso) ?? 'ESCRITURA',
       joinedAt: row.joined_at,
     };
   },

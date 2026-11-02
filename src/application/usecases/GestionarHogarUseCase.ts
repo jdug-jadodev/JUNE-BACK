@@ -32,6 +32,7 @@ export class GestionarHogarUseCase implements GestionarHogarPort {
       hogarId: hogar.id,
       usuarioId: input.usuarioId,
       rol: 'ADMIN',
+      acceso: 'ESCRITURA',
       joinedAt: ahora,
     });
 

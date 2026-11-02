@@ -8,14 +8,15 @@ export class MiembroD1Adapter implements MiembroRepositorioPort {
   async crear(miembro: Miembro): Promise<Miembro> {
     await this.db
       .prepare(
-        `INSERT INTO members (id, household_id, user_id, role, joined_at)
-         VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO members (id, household_id, user_id, role, access_level, joined_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         miembro.id,
         miembro.hogarId,
         miembro.usuarioId,
         miembro.rol,
+        miembro.acceso,
         miembro.joinedAt,
       )
       .run();
@@ -49,6 +50,13 @@ export class MiembroD1Adapter implements MiembroRepositorioPort {
 
   async eliminar(id: string): Promise<void> {
     await this.db.prepare(`DELETE FROM members WHERE id = ?`).bind(id).run();
+  }
+
+  async actualizarAcceso(id: string, acceso: string): Promise<void> {
+    await this.db
+      .prepare(`UPDATE members SET access_level = ? WHERE id = ?`)
+      .bind(acceso, id)
+      .run();
   }
 
   async contarAdmins(hogarId: string): Promise<number> {

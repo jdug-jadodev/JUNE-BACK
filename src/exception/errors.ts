@@ -74,3 +74,9 @@ export class CorteInvalidoError extends DomainError {
     super('CORTE_INVALIDO', 'El día de corte debe estar entre 1 y 31', 400);
   }
 }
+
+export class SoloLecturaError extends DomainError {
+  constructor() {
+    super('SOLO_LECTURA', 'Tu acceso es de solo lectura', 403);
+  }
+}

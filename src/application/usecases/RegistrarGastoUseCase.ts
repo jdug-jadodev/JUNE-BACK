@@ -4,7 +4,7 @@ import type { RegistrarGastoPort } from '../../domain/ports/in/RegistrarGastoPor
 import type { GastoRepositorioPort } from '../../domain/ports/out/GastoRepositorioPort';
 import type { MiembroRepositorioPort } from '../../domain/ports/out/MiembroRepositorioPort';
 import type { UsuarioRepositorioPort } from '../../domain/ports/out/UsuarioRepositorioPort';
-import { NoEsMiembroError } from '../../exception/errors';
+import { NoEsMiembroError, SoloLecturaError } from '../../exception/errors';
 
 export class RegistrarGastoUseCase implements RegistrarGastoPort {
   constructor(
@@ -22,6 +22,10 @@ export class RegistrarGastoUseCase implements RegistrarGastoPort {
   }): Promise<Gasto> {
     const miembro = await this.miembros.buscar(input.hogarId, input.usuarioId);
     if (!miembro) throw new NoEsMiembroError();
+
+    if (miembro.rol !== 'ADMIN' && miembro.acceso !== 'ESCRITURA') {
+      throw new SoloLecturaError();
+    }
 
     const usuario = await this.usuarios.buscarPorId(input.usuarioId);
 

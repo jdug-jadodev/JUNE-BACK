@@ -12,6 +12,7 @@ const miembro: Miembro = {
   hogarId: 'h1',
   usuarioId: 'u1',
   rol: 'ADMIN',
+  acceso: 'ESCRITURA',
   joinedAt: '2026-10-01T00:00:00.000Z',
 };
 

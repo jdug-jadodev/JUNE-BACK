@@ -35,6 +35,7 @@ function crearDependencias() {
       hogarId: 'h1',
       usuarioId: 'u1',
       rol: 'ADMIN',
+      acceso: 'ESCRITURA',
       joinedAt: '2026-08-01T00:00:00.000Z',
     }),
   } as unknown as MiembroRepositorioPort;
