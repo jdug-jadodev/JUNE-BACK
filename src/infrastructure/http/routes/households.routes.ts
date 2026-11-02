@@ -102,7 +102,7 @@ export function householdsRoutes(app: Hono<AppEnv>): void {
     });
     return c.body(csv, 200, {
       'Content-Type': 'text/csv; charset=utf-8',
-      'Content-Disposition': 'attachment; filename="gastos_andromeda.csv"',
+      'Content-Disposition': 'attachment; filename="gastos_cauce.csv"',
     });
   });
 
