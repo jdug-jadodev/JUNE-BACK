@@ -42,6 +42,13 @@ export class RefreshTokenD1Adapter implements RefreshTokenRepositorioPort {
       .run();
   }
 
+  async eliminarPorUsuario(usuarioId: string): Promise<void> {
+    await this.db
+      .prepare(`DELETE FROM refresh_tokens WHERE user_id = ?`)
+      .bind(usuarioId)
+      .run();
+  }
+
   async eliminarExpirados(ahora: string): Promise<void> {
     await this.db
       .prepare(`DELETE FROM refresh_tokens WHERE expires_at <= ?`)

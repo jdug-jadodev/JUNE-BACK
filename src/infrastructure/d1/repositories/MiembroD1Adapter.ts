@@ -59,6 +59,13 @@ export class MiembroD1Adapter implements MiembroRepositorioPort {
       .run();
   }
 
+  async actualizarRol(id: string, rol: string): Promise<void> {
+    await this.db
+      .prepare(`UPDATE members SET role = ? WHERE id = ?`)
+      .bind(rol, id)
+      .run();
+  }
+
   async contarAdmins(hogarId: string): Promise<number> {
     const row = await this.db
       .prepare(

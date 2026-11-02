@@ -80,3 +80,27 @@ export class SoloLecturaError extends DomainError {
     super('SOLO_LECTURA', 'Tu acceso es de solo lectura', 403);
   }
 }
+
+export class RecuperacionInvalidaError extends DomainError {
+  constructor() {
+    super('RECUPERACION_INVALIDA', 'No pudimos validar tus datos de recuperación', 401);
+  }
+}
+
+export class RecuperacionBloqueadaError extends DomainError {
+  constructor() {
+    super('RECUPERACION_BLOQUEADA', 'Demasiados intentos. Espera 15 minutos', 429);
+  }
+}
+
+export class PasswordActualIncorrectaError extends DomainError {
+  constructor() {
+    super('PASSWORD_ACTUAL_INCORRECTA', 'La contraseña actual no es correcta', 401);
+  }
+}
+
+export class SeguridadInvalidaError extends DomainError {
+  constructor(message: string) {
+    super('SEGURIDAD_INVALIDA', message, 400);
+  }
+}

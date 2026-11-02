@@ -6,6 +6,7 @@ import type { GestionarHogarPort } from '../../domain/ports/in/GestionarHogarPor
 import type { GestionarMiembrosPort } from '../../domain/ports/in/GestionarMiembrosPort';
 import type { RegistrarGastoPort } from '../../domain/ports/in/RegistrarGastoPort';
 import type { ExportarGastosPort } from '../../domain/ports/in/ExportarGastosPort';
+import type { SeguridadPort } from '../../domain/ports/in/SeguridadPort';
 import type { TokenPort } from '../../domain/ports/out/TokenPort';
 import { ActualizarGastoUseCase } from '../../application/usecases/ActualizarGastoUseCase';
 import { AutenticacionUseCase } from '../../application/usecases/AutenticacionUseCase';
@@ -15,6 +16,7 @@ import { ExportarGastosUseCase } from '../../application/usecases/ExportarGastos
 import { GestionarHogarUseCase } from '../../application/usecases/GestionarHogarUseCase';
 import { GestionarMiembrosUseCase } from '../../application/usecases/GestionarMiembrosUseCase';
 import { RegistrarGastoUseCase } from '../../application/usecases/RegistrarGastoUseCase';
+import { SeguridadUseCase } from '../../application/usecases/SeguridadUseCase';
 import { GastoD1Adapter } from '../d1/repositories/GastoD1Adapter';
 import { HogarD1Adapter } from '../d1/repositories/HogarD1Adapter';
 import { MiembroD1Adapter } from '../d1/repositories/MiembroD1Adapter';
@@ -34,6 +36,7 @@ export interface Container {
   eliminarGasto: EliminarGastoPort;
   consultarGastos: ConsultarGastosPort;
   exportarGastos: ExportarGastosPort;
+  seguridad: SeguridadPort;
 }
 
 export function buildContainer(env: Env): Container {
@@ -49,11 +52,18 @@ export function buildContainer(env: Env): Container {
     token,
     autenticacion: new AutenticacionUseCase(usuarios, refreshTokens, passwordHash, token),
     gestionarHogar: new GestionarHogarUseCase(hogares, miembros, passwordHash),
-    gestionarMiembros: new GestionarMiembrosUseCase(miembros, hogares),
+    gestionarMiembros: new GestionarMiembrosUseCase(
+      miembros,
+      hogares,
+      usuarios,
+      passwordHash,
+      refreshTokens,
+    ),
     registrarGasto: new RegistrarGastoUseCase(gastos, miembros, usuarios),
     actualizarGasto: new ActualizarGastoUseCase(gastos, miembros, hogares, passwordHash),
     eliminarGasto: new EliminarGastoUseCase(gastos, miembros, hogares, passwordHash),
     consultarGastos: new ConsultarGastosUseCase(gastos, miembros, hogares),
     exportarGastos: new ExportarGastosUseCase(gastos, miembros, hogares),
+    seguridad: new SeguridadUseCase(usuarios, passwordHash, refreshTokens),
   };
 }

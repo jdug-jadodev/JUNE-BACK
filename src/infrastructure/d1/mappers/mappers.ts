@@ -10,6 +10,11 @@ export interface UsuarioRow {
   email: string;
   nombre: string;
   password_hash: string;
+  security_question: string | null;
+  security_answer_hash: string | null;
+  recovery_code_hash: string | null;
+  reset_attempts: number;
+  reset_locked_until: string | null;
   created_at: string;
 }
 

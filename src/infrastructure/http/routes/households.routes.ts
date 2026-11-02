@@ -23,6 +23,10 @@ const accesoSchema = z.object({
   acceso: z.enum(['LECTURA', 'ESCRITURA']),
 });
 
+const rolSchema = z.object({
+  rol: z.enum(['ADMIN', 'MIEMBRO']),
+});
+
 export function householdsRoutes(app: Hono<AppEnv>): void {
   app.get('/households', auth, async (c) => {
     const hogares = await c.var.container.gestionarHogar.listar({
@@ -126,6 +130,26 @@ export function householdsRoutes(app: Hono<AppEnv>): void {
       miembroId: c.req.param('mid'),
       usuarioId: c.var.usuarioId,
       acceso: body.acceso,
+    });
+    return c.body(null, 204);
+  });
+
+  app.post('/households/:hid/members/:mid/reset-password', auth, async (c) => {
+    const passwordTemporal = await c.var.container.gestionarMiembros.restablecerPassword({
+      hogarId: c.req.param('hid'),
+      miembroId: c.req.param('mid'),
+      usuarioId: c.var.usuarioId,
+    });
+    return c.json({ passwordTemporal });
+  });
+
+  app.patch('/households/:hid/members/:mid/role', auth, async (c) => {
+    const body = rolSchema.parse(await c.req.json());
+    await c.var.container.gestionarMiembros.cambiarRol({
+      hogarId: c.req.param('hid'),
+      miembroId: c.req.param('mid'),
+      usuarioId: c.var.usuarioId,
+      rol: body.rol,
     });
     return c.body(null, 204);
   });
