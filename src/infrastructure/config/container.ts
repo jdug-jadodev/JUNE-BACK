@@ -53,7 +53,7 @@ export function buildContainer(env: Env): Container {
     registrarGasto: new RegistrarGastoUseCase(gastos, miembros, usuarios),
     actualizarGasto: new ActualizarGastoUseCase(gastos, miembros, hogares, passwordHash),
     eliminarGasto: new EliminarGastoUseCase(gastos, miembros, hogares, passwordHash),
-    consultarGastos: new ConsultarGastosUseCase(gastos, miembros),
-    exportarGastos: new ExportarGastosUseCase(gastos, miembros),
+    consultarGastos: new ConsultarGastosUseCase(gastos, miembros, hogares),
+    exportarGastos: new ExportarGastosUseCase(gastos, miembros, hogares),
   };
 }

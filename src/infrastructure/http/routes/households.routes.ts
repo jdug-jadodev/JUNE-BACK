@@ -15,6 +15,10 @@ const passwordSchema = z.object({
   password: z.string().min(8),
 });
 
+const corteSchema = z.object({
+  cutoffDay: z.number().int().min(1).max(31),
+});
+
 export function householdsRoutes(app: Hono<AppEnv>): void {
   app.get('/households', auth, async (c) => {
     const hogares = await c.var.container.gestionarHogar.listar({
@@ -59,6 +63,16 @@ export function householdsRoutes(app: Hono<AppEnv>): void {
     return c.body(null, 204);
   });
 
+  app.patch('/households/:hid/cutoff', auth, async (c) => {
+    const body = corteSchema.parse(await c.req.json());
+    const hogar = await c.var.container.gestionarHogar.configurarCorte({
+      hogarId: c.req.param('hid'),
+      usuarioId: c.var.usuarioId,
+      cutoffDay: body.cutoffDay,
+    });
+    return c.json(hogar);
+  });
+
   app.get('/households/:hid/members', auth, async (c) => {
     const miembros = await c.var.container.gestionarMiembros.listar({
       hogarId: c.req.param('hid'),
@@ -73,10 +87,18 @@ export function householdsRoutes(app: Hono<AppEnv>): void {
       ? monthsParam.split(',').map((mes) => mes.trim()).filter(Boolean)
       : undefined;
 
+    const cyclesParam = c.req.query('ciclos');
+    const ciclos = cyclesParam
+      ? z
+          .array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/))
+          .parse(cyclesParam.split(',').map((ciclo) => ciclo.trim()).filter(Boolean))
+      : undefined;
+
     const csv = await c.var.container.exportarGastos.ejecutar({
       hogarId: c.req.param('hid'),
       usuarioId: c.var.usuarioId,
       meses,
+      ciclos,
     });
     return c.body(csv, 200, {
       'Content-Type': 'text/csv; charset=utf-8',

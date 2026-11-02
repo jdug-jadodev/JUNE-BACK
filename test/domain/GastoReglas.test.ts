@@ -26,4 +26,12 @@ describe('GastoReglas', () => {
     expect(GastoReglas.esMesActual('2026-09-30', referencia)).toBe(false);
     expect(GastoReglas.esMesActual('2026-11-01', referencia)).toBe(false);
   });
+
+  it('identifica los gastos del ciclo actual según el corte', () => {
+    const referencia = new Date('2026-11-02T12:00:00Z');
+    expect(GastoReglas.esCicloActual('2026-10-31', 29, referencia)).toBe(true);
+    expect(GastoReglas.esCicloActual('2026-11-28', 29, referencia)).toBe(true);
+    expect(GastoReglas.esCicloActual('2026-10-28', 29, referencia)).toBe(false);
+    expect(GastoReglas.esCicloActual('2026-11-29', 29, referencia)).toBe(false);
+  });
 });

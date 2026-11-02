@@ -1,4 +1,5 @@
 import { GastoInvalidoError } from '../../exception/errors';
+import { CicloReglas } from './CicloReglas';
 
 export const GastoReglas = {
   validar(producto: string, montoCents: number, fecha: string): void {
@@ -16,5 +17,13 @@ export const GastoReglas = {
   esMesActual(fecha: string, referencia: Date = new Date()): boolean {
     const [year, month] = fecha.split('-').map(Number);
     return referencia.getUTCFullYear() === year && referencia.getUTCMonth() + 1 === month;
+  },
+
+  esCicloActual(fecha: string, corte: number, referencia: Date = new Date()): boolean {
+    const hoy = referencia.toISOString().slice(0, 10);
+    return (
+      CicloReglas.cicloDe(fecha, corte).inicio ===
+      CicloReglas.cicloDe(hoy, corte).inicio
+    );
   },
 };

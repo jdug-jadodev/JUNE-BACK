@@ -8,8 +8,8 @@ export class HogarD1Adapter implements HogarRepositorioPort {
   async crear(hogar: Hogar): Promise<Hogar> {
     await this.db
       .prepare(
-        `INSERT INTO households (id, nombre, owner_id, invite_code, admin_password_hash, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO households (id, nombre, owner_id, invite_code, admin_password_hash, cutoff_day, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         hogar.id,
@@ -17,6 +17,7 @@ export class HogarD1Adapter implements HogarRepositorioPort {
         hogar.ownerId,
         hogar.inviteCode,
         hogar.adminPasswordHash,
+        hogar.cutoffDay,
         hogar.createdAt,
       )
       .run();
@@ -61,6 +62,13 @@ export class HogarD1Adapter implements HogarRepositorioPort {
     await this.db
       .prepare(`UPDATE households SET admin_password_hash = ? WHERE id = ?`)
       .bind(hash, id)
+      .run();
+  }
+
+  async actualizarCorte(id: string, cutoffDay: number): Promise<void> {
+    await this.db
+      .prepare(`UPDATE households SET cutoff_day = ? WHERE id = ?`)
+      .bind(cutoffDay, id)
       .run();
   }
 }

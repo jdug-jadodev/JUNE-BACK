@@ -18,6 +18,7 @@ export interface HogarRow {
   owner_id: string;
   invite_code: string;
   admin_password_hash: string | null;
+  cutoff_day: number;
   created_at: string;
 }
 
@@ -62,6 +63,7 @@ export const HogarMapper = {
       ownerId: row.owner_id,
       inviteCode: row.invite_code,
       adminPasswordHash: row.admin_password_hash,
+      cutoffDay: row.cutoff_day ?? 1,
       createdAt: row.created_at,
     };
   },

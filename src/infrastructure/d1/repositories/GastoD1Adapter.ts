@@ -3,6 +3,7 @@ import type { ResumenMes } from '../../../domain/entities/ResumenMes';
 import type {
   FiltroGastos,
   GastoRepositorioPort,
+  GastoResumenFecha,
 } from '../../../domain/ports/out/GastoRepositorioPort';
 import { GastoMapper, type GastoRow } from '../mappers/mappers';
 
@@ -46,6 +47,18 @@ export class GastoD1Adapter implements GastoRepositorioPort {
       .bind(...valores)
       .all<GastoRow>();
     return results.map(GastoMapper.toDomain);
+  }
+
+  async listarFechasMontos(hogarId: string): Promise<GastoResumenFecha[]> {
+    const { results } = await this.db
+      .prepare(`SELECT fecha, monto_cents FROM expenses WHERE household_id = ?`)
+      .bind(hogarId)
+      .all<{ fecha: string; monto_cents: number }>();
+
+    return results.map((fila) => ({
+      fecha: fila.fecha,
+      montoCents: fila.monto_cents,
+    }));
   }
 
   async listarMeses(hogarId: string): Promise<ResumenMes[]> {

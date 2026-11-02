@@ -6,4 +6,5 @@ export interface HogarRepositorioPort {
   obtener(id: string): Promise<Hogar | null>;
   buscarPorInviteCode(codigo: string): Promise<Hogar | null>;
   actualizarPasswordHash(id: string, hash: string): Promise<void>;
+  actualizarCorte(id: string, cutoffDay: number): Promise<void>;
 }

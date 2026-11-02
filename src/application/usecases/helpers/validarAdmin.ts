@@ -1,3 +1,4 @@
+import type { Hogar } from '../../../domain/entities/Hogar';
 import type { HogarRepositorioPort } from '../../../domain/ports/out/HogarRepositorioPort';
 import type { MiembroRepositorioPort } from '../../../domain/ports/out/MiembroRepositorioPort';
 import type { PasswordHashPort } from '../../../domain/ports/out/PasswordHashPort';
@@ -16,7 +17,7 @@ export async function validarAdmin(input: {
   miembroRepo: MiembroRepositorioPort;
   hogarRepo: HogarRepositorioPort;
   passwordHash: PasswordHashPort;
-}): Promise<void> {
+}): Promise<Hogar> {
   const miembro = await input.miembroRepo.buscar(input.hogarId, input.usuarioId);
   if (!miembro) throw new NoEsMiembroError();
 
@@ -33,4 +34,6 @@ export async function validarAdmin(input: {
   if (!PermisoReglas.puedeEditar(miembro.rol, passwordValida)) {
     throw new PermisoDenegadoError();
   }
+
+  return hogar;
 }

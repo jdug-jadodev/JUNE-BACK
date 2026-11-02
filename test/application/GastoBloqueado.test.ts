@@ -46,6 +46,7 @@ function crearDependencias() {
       ownerId: 'u1',
       inviteCode: 'ANDRO-TEST',
       adminPasswordHash: 'hash',
+      cutoffDay: 1,
       createdAt: '2026-08-01T00:00:00.000Z',
     }),
   } as unknown as HogarRepositorioPort;

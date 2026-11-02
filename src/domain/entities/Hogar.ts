@@ -4,5 +4,6 @@ export interface Hogar {
   ownerId: string;
   inviteCode: string;
   adminPasswordHash: string | null;
+  cutoffDay: number;
   createdAt: string;
 }

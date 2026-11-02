@@ -65,6 +65,12 @@ export class PasswordAdminNoConfiguradaError extends DomainError {
 
 export class GastoBloqueadoError extends DomainError {
   constructor() {
-    super('GASTO_BLOQUEADO', 'Solo se pueden modificar gastos del mes actual', 409);
+    super('GASTO_BLOQUEADO', 'Solo se pueden modificar gastos del ciclo actual', 409);
+  }
+}
+
+export class CorteInvalidoError extends DomainError {
+  constructor() {
+    super('CORTE_INVALIDO', 'El día de corte debe estar entre 1 y 31', 400);
   }
 }

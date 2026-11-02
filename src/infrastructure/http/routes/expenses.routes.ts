@@ -25,6 +25,14 @@ export function expensesRoutes(app: Hono<AppEnv>): void {
     return c.json(meses);
   });
 
+  app.get('/households/:hid/cycles', auth, async (c) => {
+    const ciclos = await c.var.container.consultarGastos.ciclos({
+      hogarId: c.req.param('hid'),
+      usuarioId: c.var.usuarioId,
+    });
+    return c.json(ciclos);
+  });
+
   app.get('/households/:hid/expenses', auth, async (c) => {
     const filtro = filtroSchema.parse({
       desde: c.req.query('desde'),

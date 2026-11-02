@@ -25,7 +25,7 @@ export class ActualizarGastoUseCase implements ActualizarGastoPort {
     montoCents: number;
     fecha: string;
   }): Promise<Gasto> {
-    await validarAdmin({
+    const hogar = await validarAdmin({
       hogarId: input.hogarId,
       usuarioId: input.usuarioId,
       adminPassword: input.adminPassword,
@@ -39,7 +39,7 @@ export class ActualizarGastoUseCase implements ActualizarGastoPort {
       throw new NoEncontradoError('Gasto no encontrado');
     }
 
-    if (!GastoReglas.esMesActual(existente.fecha)) {
+    if (!GastoReglas.esCicloActual(existente.fecha, hogar.cutoffDay)) {
       throw new GastoBloqueadoError();
     }
 

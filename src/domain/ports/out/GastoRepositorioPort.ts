@@ -7,8 +7,14 @@ export interface FiltroGastos {
   hasta?: string;
 }
 
+export interface GastoResumenFecha {
+  fecha: string;
+  montoCents: number;
+}
+
 export interface GastoRepositorioPort {
   listar(hogarId: string, filtro?: FiltroGastos): Promise<Gasto[]>;
+  listarFechasMontos(hogarId: string): Promise<GastoResumenFecha[]>;
   listarMeses(hogarId: string): Promise<ResumenMes[]>;
   obtener(id: string): Promise<Gasto | null>;
   crear(gasto: Gasto): Promise<Gasto>;
