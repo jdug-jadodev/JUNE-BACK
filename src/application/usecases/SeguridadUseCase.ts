@@ -9,6 +9,8 @@ import {
   PasswordActualIncorrectaError,
   RecuperacionBloqueadaError,
   RecuperacionInvalidaError,
+  SinLlaveRecuperacionError,
+  SinPreguntaSeguridadError,
 } from '../../exception/errors';
 
 const MAX_INTENTOS = 5;
@@ -65,8 +67,11 @@ export class SeguridadUseCase implements SeguridadPort {
     const seguridad = await this.usuarios.buscarSeguridadPorEmail(
       input.email.trim().toLowerCase(),
     );
-    if (!seguridad?.securityAnswerHash || !seguridad.securityQuestion) {
+    if (!seguridad) {
       throw new RecuperacionInvalidaError();
+    }
+    if (!seguridad.securityAnswerHash || !seguridad.securityQuestion) {
+      throw new SinPreguntaSeguridadError();
     }
 
     await this.validarNoBloqueado(seguridad);
@@ -89,8 +94,11 @@ export class SeguridadUseCase implements SeguridadPort {
     const seguridad = await this.usuarios.buscarSeguridadPorEmail(
       input.email.trim().toLowerCase(),
     );
-    if (!seguridad?.recoveryCodeHash) {
+    if (!seguridad) {
       throw new RecuperacionInvalidaError();
+    }
+    if (!seguridad.recoveryCodeHash) {
+      throw new SinLlaveRecuperacionError();
     }
 
     await this.validarNoBloqueado(seguridad);

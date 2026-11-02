@@ -104,3 +104,23 @@ export class SeguridadInvalidaError extends DomainError {
     super('SEGURIDAD_INVALIDA', message, 400);
   }
 }
+
+export class SinPreguntaSeguridadError extends DomainError {
+  constructor() {
+    super(
+      'SIN_PREGUNTA_SEGURIDAD',
+      'Esta cuenta no tiene pregunta de seguridad. Inicia sesión y configúrala en Seguridad de la cuenta.',
+      400,
+    );
+  }
+}
+
+export class SinLlaveRecuperacionError extends DomainError {
+  constructor() {
+    super(
+      'SIN_LLAVE_RECUPERACION',
+      'Esta cuenta no tiene llave de recuperación. Inicia sesión y genera una en Seguridad de la cuenta.',
+      400,
+    );
+  }
+}
