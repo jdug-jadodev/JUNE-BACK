@@ -10,6 +10,7 @@ export type Categoria =
   | 'deudas'
   | 'hogar'
   | 'gustos'
+  | 'negocio'
   | 'cuidado'
   | 'otros';
 

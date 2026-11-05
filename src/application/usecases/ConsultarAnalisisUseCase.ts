@@ -2,22 +2,41 @@ import type {
   Analisis,
   CarreraCiclo,
   CarreraDia,
+  EjemploAnalisis,
   ProyeccionAnalisis,
   SinClasificarAnalisis,
 } from '../../domain/entities/Analisis';
+import type { CategoriaPersonalizada } from '../../domain/entities/CategoriaPersonalizada';
+import type { Categoria, Concepto, Necesidad, Tipo } from '../../domain/entities/Concepto';
 import type { Gasto } from '../../domain/entities/Gasto';
 import type { ConsultarAnalisisPort } from '../../domain/ports/in/ConsultarAnalisisPort';
+import type { CategoriaPersonalizadaRepositorioPort } from '../../domain/ports/out/CategoriaPersonalizadaRepositorioPort';
 import type { ClasificacionRepositorioPort } from '../../domain/ports/out/ClasificacionRepositorioPort';
 import type { GastoRepositorioPort } from '../../domain/ports/out/GastoRepositorioPort';
 import type { HogarRepositorioPort } from '../../domain/ports/out/HogarRepositorioPort';
 import type { MiembroRepositorioPort } from '../../domain/ports/out/MiembroRepositorioPort';
 import { CicloReglas } from '../../domain/rules/CicloReglas';
-import { clasificar, normalizarTermino } from '../../domain/rules/Clasificador';
-import { CATEGORIA_NOMBRE } from '../../domain/rules/CatalogoConceptos';
+import { normalizarTermino, resolverAlias } from '../../domain/rules/Clasificador';
+import { CATEGORIA_NOMBRE, CONCEPTOS_BY_ID } from '../../domain/rules/CatalogoConceptos';
 import { NoEncontradoError, NoEsMiembroError } from '../../exception/errors';
 
 type AliasHogar = Record<string, string>;
-type Ejemplos = Map<string, { nombre: string; montoCents: number }>;
+type EjemploInterno = { nombre: string; termino: string; montoCents: number };
+type Ejemplos = Map<string, EjemploInterno>;
+
+interface ContextoClasificacion {
+  alias: AliasHogar;
+  personalizadas: Map<string, CategoriaPersonalizada>;
+}
+
+interface ConceptoResuelto {
+  id: string;
+  nombre: string;
+  categoria: string;
+  tipo: Tipo;
+  necesidad: Necesidad;
+  esGusto: boolean;
+}
 
 function diaSiguiente(iso: string): string {
   const d = new Date(`${iso}T00:00:00Z`);
@@ -45,21 +64,26 @@ function diasEntre(inicio: string, fin: string): number {
 
 function agregarEjemplo(ejemplos: Ejemplos, producto: string, montoCents: number): void {
   const nombre = producto.trim();
-  const clave = normalizarTermino(nombre);
-  if (!nombre || !clave) return;
+  const termino = normalizarTermino(nombre);
+  if (!nombre || !termino) return;
 
-  const previo = ejemplos.get(clave);
+  const previo = ejemplos.get(termino);
   if (!previo || montoCents > previo.montoCents) {
-    ejemplos.set(clave, { nombre, montoCents });
+    ejemplos.set(termino, { nombre, termino, montoCents });
   }
 }
 
-/** Los 3 gastos más grandes del grupo, sin repetir nombres. */
-function topEjemplos(ejemplos: Ejemplos): string[] {
+/** Los 3 gastos más grandes del grupo, sin repetir términos. */
+function topEjemplos(ejemplos: Ejemplos): EjemploAnalisis[] {
   return [...ejemplos.values()]
     .sort((a, b) => b.montoCents - a.montoCents)
     .slice(0, 3)
-    .map((e) => e.nombre);
+    .map((e) => ({ nombre: e.nombre, termino: e.termino }));
+}
+
+function nombreCategoria(concepto: ConceptoResuelto): string {
+  if (concepto.categoria.startsWith('cat:')) return concepto.nombre;
+  return CATEGORIA_NOMBRE[concepto.categoria as Categoria];
 }
 
 export class ConsultarAnalisisUseCase implements ConsultarAnalisisPort {
@@ -68,6 +92,7 @@ export class ConsultarAnalisisUseCase implements ConsultarAnalisisPort {
     private readonly miembros: MiembroRepositorioPort,
     private readonly hogares: HogarRepositorioPort,
     private readonly clasificaciones: ClasificacionRepositorioPort,
+    private readonly categorias: CategoriaPersonalizadaRepositorioPort,
   ) {}
 
   async ejecutar(input: {
@@ -82,10 +107,15 @@ export class ConsultarAnalisisUseCase implements ConsultarAnalisisPort {
     const hogar = await this.hogares.obtener(input.hogarId);
     if (!hogar) throw new NoEncontradoError('Hogar no encontrado');
 
-    const overrides = await this.clasificaciones.listar(input.hogarId);
-    const alias: AliasHogar = Object.fromEntries(
-      overrides.map((o) => [o.termino, o.conceptoId]),
-    );
+    const [overrides, personalizadas] = await Promise.all([
+      this.clasificaciones.listar(input.hogarId),
+      this.categorias.listar(input.hogarId),
+    ]);
+
+    const contexto: ContextoClasificacion = {
+      alias: Object.fromEntries(overrides.map((o) => [o.termino, o.conceptoId])),
+      personalizadas: new Map(personalizadas.map((c) => [c.id, c])),
+    };
 
     const hoy = input.hoy ?? new Date().toISOString().slice(0, 10);
 
@@ -115,10 +145,10 @@ export class ConsultarAnalisisUseCase implements ConsultarAnalisisPort {
     const actual = gastos.filter((g) => enCiclo(g, cicloActual.inicio));
     const anterior = gastos.filter((g) => enCiclo(g, cicloAnterior.inicio));
 
-    const resumen = this.resumen(objetivo, alias);
-    const categorias = this.categorias(objetivo, alias);
-    const gustos = this.gustos(objetivo, alias);
-    const sinClasificar = this.sinClasificar(objetivo, alias);
+    const resumen = this.resumen(objetivo, contexto);
+    const categorias = this.categoriasAnalisis(objetivo, contexto);
+    const gustos = this.gustos(objetivo, contexto);
+    const sinClasificar = this.sinClasificar(objetivo, contexto);
     const carreraActual = this.carrera(actual, cicloActual.inicio, cicloActual.fin, hoy, 'actual');
     const carreraAnterior = this.carrera(
       anterior,
@@ -129,7 +159,7 @@ export class ConsultarAnalisisUseCase implements ConsultarAnalisisPort {
       carreraActual.dias.length,
     );
     const carrera = [carreraActual, carreraAnterior];
-    const proyeccion = this.proyeccion(actual, anterior, cicloActual, hoy, alias);
+    const proyeccion = this.proyeccion(actual, anterior, cicloActual, hoy, contexto);
 
     return {
       ciclos: ciclosObjetivo,
@@ -142,18 +172,43 @@ export class ConsultarAnalisisUseCase implements ConsultarAnalisisPort {
     };
   }
 
-  private clasificarProducto(producto: string, alias: AliasHogar) {
-    return clasificar(producto, alias);
+  private resolver(producto: string, contexto: ContextoClasificacion): ConceptoResuelto | null {
+    const resuelto = resolverAlias(producto, contexto.alias);
+    if (!resuelto) return null;
+
+    const base: Concepto | undefined = CONCEPTOS_BY_ID[resuelto.conceptoId];
+    if (base) {
+      return {
+        id: base.id,
+        nombre: base.nombre,
+        categoria: base.categoria,
+        tipo: base.tipo,
+        necesidad: base.necesidad,
+        esGusto: base.esGusto,
+      };
+    }
+
+    const personalizada = contexto.personalizadas.get(resuelto.conceptoId);
+    if (!personalizada) return null;
+
+    return {
+      id: personalizada.id,
+      nombre: personalizada.nombre,
+      categoria: personalizada.id,
+      tipo: personalizada.tipo,
+      necesidad: 'NECESARIO',
+      esGusto: personalizada.esGusto,
+    };
   }
 
-  private resumen(gastos: Gasto[], alias: AliasHogar): Analisis['resumen'] {
+  private resumen(gastos: Gasto[], contexto: ContextoClasificacion): Analisis['resumen'] {
     let fijosCents = 0;
     let variablesCents = 0;
     const dias = new Set<string>();
 
     for (const g of gastos) {
-      const clasif = this.clasificarProducto(g.producto, alias);
-      if (clasif?.concepto.tipo === 'FIJO') fijosCents += g.montoCents;
+      const clasif = this.resolver(g.producto, contexto);
+      if (clasif?.tipo === 'FIJO') fijosCents += g.montoCents;
       else variablesCents += g.montoCents;
       dias.add(g.fecha);
     }
@@ -168,20 +223,23 @@ export class ConsultarAnalisisUseCase implements ConsultarAnalisisPort {
     };
   }
 
-  private categorias(gastos: Gasto[], alias: AliasHogar): Analisis['categorias'] {
+  private categoriasAnalisis(
+    gastos: Gasto[],
+    contexto: ContextoClasificacion,
+  ): Analisis['categorias'] {
     const mapa = new Map<
       string,
       { nombre: string; totalCents: number; cantidad: number; ejemplos: Ejemplos }
     >();
 
     for (const g of gastos) {
-      const clasif = this.clasificarProducto(g.producto, alias);
+      const clasif = this.resolver(g.producto, contexto);
       // Lo que no se reconoce va a su propia tarjeta, no a "En qué se fue".
       if (!clasif) continue;
 
-      const categoria = clasif.concepto.categoria;
+      const categoria = clasif.categoria;
       const actual = mapa.get(categoria) ?? {
-        nombre: CATEGORIA_NOMBRE[categoria],
+        nombre: nombreCategoria(clasif),
         totalCents: 0,
         cantidad: 0,
         ejemplos: new Map(),
@@ -203,47 +261,43 @@ export class ConsultarAnalisisUseCase implements ConsultarAnalisisPort {
       .sort((a, b) => b.totalCents - a.totalCents);
   }
 
-  private gustos(gastos: Gasto[], alias: AliasHogar): Analisis['gustos'] {
-    const mapa = new Map<
-      string,
-      { nombre: string; cantidad: number; totalCents: number; ejemplos: Ejemplos }
-    >();
+  private gustos(gastos: Gasto[], contexto: ContextoClasificacion): Analisis['gustos'] {
+    let cantidad = 0;
+    let totalCents = 0;
+    const ejemplos: Ejemplos = new Map();
 
     for (const g of gastos) {
-      const clasif = this.clasificarProducto(g.producto, alias);
-      if (!clasif?.concepto.esGusto) continue;
-
-      const actual = mapa.get(clasif.concepto.id) ?? {
-        nombre: clasif.concepto.nombre,
-        cantidad: 0,
-        totalCents: 0,
-        ejemplos: new Map(),
-      };
-      actual.cantidad += 1;
-      actual.totalCents += g.montoCents;
-      agregarEjemplo(actual.ejemplos, g.producto, g.montoCents);
-      mapa.set(clasif.concepto.id, actual);
+      const clasif = this.resolver(g.producto, contexto);
+      if (!clasif?.esGusto) continue;
+      cantidad += 1;
+      totalCents += g.montoCents;
+      agregarEjemplo(ejemplos, g.producto, g.montoCents);
     }
 
-    return [...mapa.entries()]
-      .map(([conceptoId, valor]) => ({
-        conceptoId,
-        nombre: valor.nombre,
-        cantidad: valor.cantidad,
-        totalCents: valor.totalCents,
-        ejemplos: topEjemplos(valor.ejemplos),
-      }))
-      .sort((a, b) => b.totalCents - a.totalCents);
+    if (cantidad === 0) return [];
+
+    return [
+      {
+        conceptoId: 'gusticos',
+        nombre: 'Gusticos',
+        cantidad,
+        totalCents,
+        ejemplos: topEjemplos(ejemplos),
+      },
+    ];
   }
 
-  private sinClasificar(gastos: Gasto[], alias: AliasHogar): SinClasificarAnalisis[] {
+  private sinClasificar(
+    gastos: Gasto[],
+    contexto: ContextoClasificacion,
+  ): SinClasificarAnalisis[] {
     const mapa = new Map<
       string,
       { termino: string; cantidad: number; totalCents: number; ejemplos: Ejemplos }
     >();
 
     for (const g of gastos) {
-      if (this.clasificarProducto(g.producto, alias)) continue;
+      if (this.resolver(g.producto, contexto)) continue;
 
       const termino = normalizarTermino(g.producto) || g.producto.trim().toLowerCase() || 'sin nombre';
       const actual = mapa.get(termino) ?? {
@@ -295,8 +349,8 @@ export class ConsultarAnalisisUseCase implements ConsultarAnalisisPort {
     return { etiqueta, inicio, fin, dias };
   }
 
-  private esFijo(g: Gasto, alias: AliasHogar): boolean {
-    return this.clasificarProducto(g.producto, alias)?.concepto.tipo === 'FIJO';
+  private esFijo(g: Gasto, contexto: ContextoClasificacion): boolean {
+    return this.resolver(g.producto, contexto)?.tipo === 'FIJO';
   }
 
   private proyeccion(
@@ -304,21 +358,21 @@ export class ConsultarAnalisisUseCase implements ConsultarAnalisisPort {
     anterior: Gasto[],
     cicloActual: { inicio: string; fin: string },
     hoy: string,
-    alias: AliasHogar,
+    contexto: ContextoClasificacion,
   ): ProyeccionAnalisis {
     const diasTotales = diasEntre(cicloActual.inicio, cicloActual.fin);
     const transcurridos = Math.max(1, Math.min(diasEntre(cicloActual.inicio, hoy), diasTotales));
 
     const variableActual = actual.reduce(
-      (s, g) => s + (this.esFijo(g, alias) ? 0 : g.montoCents),
+      (s, g) => s + (this.esFijo(g, contexto) ? 0 : g.montoCents),
       0,
     );
     const fijoActual = actual.reduce(
-      (s, g) => s + (this.esFijo(g, alias) ? g.montoCents : 0),
+      (s, g) => s + (this.esFijo(g, contexto) ? g.montoCents : 0),
       0,
     );
     const variableAnterior = anterior.reduce(
-      (s, g) => s + (this.esFijo(g, alias) ? 0 : g.montoCents),
+      (s, g) => s + (this.esFijo(g, contexto) ? 0 : g.montoCents),
       0,
     );
 

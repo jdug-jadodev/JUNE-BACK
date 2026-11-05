@@ -8,6 +8,7 @@ import type { GestionarMiembrosPort } from '../../domain/ports/in/GestionarMiemb
 import type { RegistrarGastoPort } from '../../domain/ports/in/RegistrarGastoPort';
 import type { ExportarGastosPort } from '../../domain/ports/in/ExportarGastosPort';
 import type { ClasificarTerminoPort } from '../../domain/ports/in/ClasificarTerminoPort';
+import type { GestionarCategoriasPort } from '../../domain/ports/in/GestionarCategoriasPort';
 import type { SeguridadPort } from '../../domain/ports/in/SeguridadPort';
 import type { TokenPort } from '../../domain/ports/out/TokenPort';
 import { ActualizarGastoUseCase } from '../../application/usecases/ActualizarGastoUseCase';
@@ -15,6 +16,7 @@ import { AutenticacionUseCase } from '../../application/usecases/AutenticacionUs
 import { ConsultarGastosUseCase } from '../../application/usecases/ConsultarGastosUseCase';
 import { ConsultarAnalisisUseCase } from '../../application/usecases/ConsultarAnalisisUseCase';
 import { ClasificarTerminoUseCase } from '../../application/usecases/ClasificarTerminoUseCase';
+import { GestionarCategoriasUseCase } from '../../application/usecases/GestionarCategoriasUseCase';
 import { EliminarGastoUseCase } from '../../application/usecases/EliminarGastoUseCase';
 import { ExportarGastosUseCase } from '../../application/usecases/ExportarGastosUseCase';
 import { GestionarHogarUseCase } from '../../application/usecases/GestionarHogarUseCase';
@@ -23,6 +25,7 @@ import { RegistrarGastoUseCase } from '../../application/usecases/RegistrarGasto
 import { SeguridadUseCase } from '../../application/usecases/SeguridadUseCase';
 import { GastoD1Adapter } from '../d1/repositories/GastoD1Adapter';
 import { ClasificacionD1Adapter } from '../d1/repositories/ClasificacionD1Adapter';
+import { CategoriaPersonalizadaD1Adapter } from '../d1/repositories/CategoriaPersonalizadaD1Adapter';
 import { HogarD1Adapter } from '../d1/repositories/HogarD1Adapter';
 import { MiembroD1Adapter } from '../d1/repositories/MiembroD1Adapter';
 import { RefreshTokenD1Adapter } from '../d1/repositories/RefreshTokenD1Adapter';
@@ -42,6 +45,7 @@ export interface Container {
   consultarGastos: ConsultarGastosPort;
   consultarAnalisis: ConsultarAnalisisPort;
   clasificarTermino: ClasificarTerminoPort;
+  gestionarCategorias: GestionarCategoriasPort;
   exportarGastos: ExportarGastosPort;
   seguridad: SeguridadPort;
 }
@@ -49,6 +53,7 @@ export interface Container {
 export function buildContainer(env: Env): Container {
   const gastos = new GastoD1Adapter(env.DB);
   const clasificaciones = new ClasificacionD1Adapter(env.DB);
+  const categorias = new CategoriaPersonalizadaD1Adapter(env.DB);
   const miembros = new MiembroD1Adapter(env.DB);
   const hogares = new HogarD1Adapter(env.DB);
   const usuarios = new UsuarioD1Adapter(env.DB);
@@ -71,8 +76,15 @@ export function buildContainer(env: Env): Container {
     actualizarGasto: new ActualizarGastoUseCase(gastos, miembros, hogares, passwordHash),
     eliminarGasto: new EliminarGastoUseCase(gastos, miembros, hogares, passwordHash),
     consultarGastos: new ConsultarGastosUseCase(gastos, miembros, hogares),
-    consultarAnalisis: new ConsultarAnalisisUseCase(gastos, miembros, hogares, clasificaciones),
-    clasificarTermino: new ClasificarTerminoUseCase(miembros, clasificaciones),
+    consultarAnalisis: new ConsultarAnalisisUseCase(
+      gastos,
+      miembros,
+      hogares,
+      clasificaciones,
+      categorias,
+    ),
+    clasificarTermino: new ClasificarTerminoUseCase(miembros, clasificaciones, categorias),
+    gestionarCategorias: new GestionarCategoriasUseCase(miembros, categorias),
     exportarGastos: new ExportarGastosUseCase(gastos, miembros, hogares),
     seguridad: new SeguridadUseCase(usuarios, passwordHash, refreshTokens),
   };

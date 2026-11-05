@@ -18,6 +18,10 @@ const clasificacionSchema = z.object({
   nota: z.string().max(240).optional().nullable(),
 });
 
+const categoriaSchema = z.object({
+  nombre: z.string().trim().min(2).max(40),
+});
+
 const filtroSchema = z.object({
   desde: fechaSchema.optional(),
   hasta: fechaSchema.optional(),
@@ -34,6 +38,24 @@ export function expensesRoutes(app: Hono<AppEnv>): void {
         esGusto: concepto.esGusto,
       })),
     );
+  });
+
+  app.get('/households/:hid/categories', auth, async (c) => {
+    const categorias = await c.var.container.gestionarCategorias.listar({
+      hogarId: c.req.param('hid'),
+      usuarioId: c.var.usuarioId,
+    });
+    return c.json(categorias);
+  });
+
+  app.post('/households/:hid/categories', auth, async (c) => {
+    const body = categoriaSchema.parse(await c.req.json());
+    const categoria = await c.var.container.gestionarCategorias.crear({
+      hogarId: c.req.param('hid'),
+      usuarioId: c.var.usuarioId,
+      nombre: body.nombre,
+    });
+    return c.json(categoria, 201);
   });
 
   app.post('/households/:hid/classification', auth, async (c) => {

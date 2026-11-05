@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { clasificar, normalizarTermino } from '../../src/domain/rules/Clasificador';
+import {
+  clasificar,
+  normalizarTermino,
+  resolverAlias,
+} from '../../src/domain/rules/Clasificador';
 
 describe('normalizarTermino', () => {
   it('quita tildes y deja minúsculas', () => {
@@ -11,17 +15,36 @@ describe('normalizarTermino', () => {
 
 describe('clasificar', () => {
   it('clasifica gaseosas por alias con guion', () => {
-    expect(clasificar('coca-cola')?.concepto.id).toBe('gaseosa');
-    expect(clasificar('Coca Cola')?.concepto.id).toBe('gaseosa');
+    expect(clasificar('coca-cola')?.concepto.id).toBe('gusticos');
+    expect(clasificar('Coca Cola')?.concepto.id).toBe('gusticos');
   });
 
   it('clasifica arriendo', () => {
     expect(clasificar('arriendo')?.concepto.categoria).toBe('vivienda');
   });
 
-  it('el alias más largo gana: papas y cilantro es verdura, no mecato', () => {
+  it('el alias más largo gana: papas y cilantro es verdura, no gustico', () => {
     expect(clasificar('papas y cilantro')?.concepto.id).toBe('verduras');
-    expect(clasificar('papas')?.concepto.id).toBe('snacks');
+    expect(clasificar('papas')?.concepto.id).toBe('gusticos');
+  });
+
+  it('junta pizza, postres, gaseosa y comida callejera en gusticos', () => {
+    for (const producto of ['pizza', 'postre', 'gaseosa', 'empanada', 'mecato', 'helado']) {
+      expect(clasificar(producto)?.concepto.id).toBe('gusticos');
+    }
+  });
+
+  it('reconoce la empresa y la inversión como negocio', () => {
+    expect(clasificar('vps')?.concepto.categoria).toBe('negocio');
+    expect(clasificar('hosting')?.concepto.categoria).toBe('negocio');
+    expect(clasificar('inversión')?.concepto.id).toBe('inversion');
+  });
+
+  it('resuelve categorías personalizadas del hogar', () => {
+    expect(resolverAlias('clases de piano', { 'clases de piano': 'cat:abc' })).toEqual({
+      conceptoId: 'cat:abc',
+      alias: 'clases de piano',
+    });
   });
 
   it('no confunde agua con aguardiente', () => {
@@ -40,6 +63,7 @@ describe('clasificar', () => {
   });
 
   it('marca los gustos pequeños', () => {
+    expect(clasificar('coca-cola')?.concepto.id).toBe('gusticos');
     expect(clasificar('coca-cola')?.concepto.esGusto).toBe(true);
     expect(clasificar('cerveza')?.concepto.esGusto).toBe(true);
     expect(clasificar('arriendo')?.concepto.esGusto).toBe(false);

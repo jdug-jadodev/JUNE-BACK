@@ -1,4 +1,5 @@
 import type { ClasificarTerminoPort } from '../../domain/ports/in/ClasificarTerminoPort';
+import type { CategoriaPersonalizadaRepositorioPort } from '../../domain/ports/out/CategoriaPersonalizadaRepositorioPort';
 import type { ClasificacionRepositorioPort } from '../../domain/ports/out/ClasificacionRepositorioPort';
 import type { MiembroRepositorioPort } from '../../domain/ports/out/MiembroRepositorioPort';
 import { CONCEPTOS_BY_ID } from '../../domain/rules/CatalogoConceptos';
@@ -11,6 +12,7 @@ export class ClasificarTerminoUseCase implements ClasificarTerminoPort {
   constructor(
     private readonly miembros: MiembroRepositorioPort,
     private readonly clasificaciones: ClasificacionRepositorioPort,
+    private readonly categorias: CategoriaPersonalizadaRepositorioPort,
   ) {}
 
   async ejecutar(input: {
@@ -34,20 +36,28 @@ export class ClasificarTerminoUseCase implements ClasificarTerminoPort {
       throw new DomainError('TERMINO_INVALIDO', 'El gasto no tiene un nombre válido', 400);
     }
 
-    const concepto = CONCEPTOS_BY_ID[input.conceptoId];
-    if (!concepto) {
-      throw new DomainError('CONCEPTO_INVALIDO', 'Elige una categoría de la lista', 400);
-    }
-
+    const nombre = await this.nombreConcepto(input.hogarId, input.conceptoId);
     const nota = input.nota?.trim().slice(0, MAX_NOTA) || null;
 
     await this.clasificaciones.guardar({
       hogarId: input.hogarId,
       termino,
-      conceptoId: concepto.id,
+      conceptoId: input.conceptoId,
       nota,
     });
 
-    return { termino, conceptoId: concepto.id, nombre: concepto.nombre, nota };
+    return { termino, conceptoId: input.conceptoId, nombre, nota };
+  }
+
+  private async nombreConcepto(hogarId: string, conceptoId: string): Promise<string> {
+    const base = CONCEPTOS_BY_ID[conceptoId];
+    if (base) return base.nombre;
+
+    if (conceptoId.startsWith('cat:')) {
+      const personalizada = await this.categorias.obtener(hogarId, conceptoId);
+      if (personalizada) return personalizada.nombre;
+    }
+
+    throw new DomainError('CONCEPTO_INVALIDO', 'Elige una categoría de la lista', 400);
   }
 }

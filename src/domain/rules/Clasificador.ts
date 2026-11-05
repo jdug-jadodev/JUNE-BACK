@@ -35,36 +35,65 @@ export interface ResultadoClasificacion {
   alias: string;
 }
 
+export interface AliasResuelto {
+  conceptoId: string;
+  alias: string;
+}
+
+function mejorCoincidencia(
+  tokens: string[],
+  alias: Array<[string, string]>,
+): AliasResuelto | null {
+  let mejor: AliasResuelto | null = null;
+
+  for (const [texto, conceptoId] of alias) {
+    const aliasTokens = tokenizar(texto);
+    if (!contieneSecuencia(tokens, aliasTokens)) continue;
+    if (mejor === null || texto.length > mejor.alias.length) {
+      mejor = { conceptoId, alias: texto };
+    }
+  }
+
+  return mejor;
+}
+
 /**
- * Clasifica un producto libre a un concepto del catálogo.
- * - Prioriza los alias más largos (más específicos): "papas y cilantro" gana sobre "papas".
- * - `aliasPorHogar` permite correcciones del usuario (mismo término -> otro concepto).
+ * Resuelve el concepto de un producto libre, sin exigir que sea del catálogo.
+ * Sirve para categorías personalizadas (`cat:<id>`).
+ * - Un término corregido por el hogar tiene prioridad sobre el catálogo.
+ * - Entre alias, gana el más largo: "papas y cilantro" sobre "papas".
+ */
+export function resolverAlias(
+  producto: string,
+  aliasPorHogar: Record<string, string> = {},
+): AliasResuelto | null {
+  const termino = normalizarTermino(producto);
+  if (!termino) return null;
+
+  const tokens = tokenizar(termino);
+  const delHogar = Object.entries(aliasPorHogar);
+
+  // Coincidencia exacta del hogar: es la corrección más intencional.
+  const exacto = aliasPorHogar[termino];
+  if (exacto !== undefined) return { conceptoId: exacto, alias: termino };
+
+  const hogar = mejorCoincidencia(tokens, delHogar);
+  if (hogar) return hogar;
+
+  return mejorCoincidencia(tokens, Object.entries(ALIASES));
+}
+
+/**
+ * Clasifica un producto libre a un concepto del catálogo base.
  * Devuelve `null` si no hay coincidencia (queda "Sin clasificar").
  */
 export function clasificar(
   producto: string,
   aliasPorHogar: Record<string, string> = {},
 ): ResultadoClasificacion | null {
-  const termino = normalizarTermino(producto);
-  if (!termino) return null;
+  const resuelto = resolverAlias(producto, aliasPorHogar);
+  if (!resuelto) return null;
 
-  const tokens = tokenizar(termino);
-  const combinados = new Map<string, string>(Object.entries(ALIASES));
-  for (const [alias, conceptoId] of Object.entries(aliasPorHogar)) {
-    combinados.set(alias, conceptoId);
-  }
-
-  let mejor: { alias: string; conceptoId: string } | null = null;
-
-  for (const [alias, conceptoId] of combinados.entries()) {
-    const aliasTokens = tokenizar(alias);
-    if (!contieneSecuencia(tokens, aliasTokens)) continue;
-    if (mejor === null || alias.length > mejor.alias.length) {
-      mejor = { alias, conceptoId };
-    }
-  }
-
-  if (!mejor) return null;
-  const concepto = CONCEPTOS_BY_ID[mejor.conceptoId];
-  return concepto ? { concepto, alias: mejor.alias } : null;
+  const concepto = CONCEPTOS_BY_ID[resuelto.conceptoId];
+  return concepto ? { concepto, alias: resuelto.alias } : null;
 }

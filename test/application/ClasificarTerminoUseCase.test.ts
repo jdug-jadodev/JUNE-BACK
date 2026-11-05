@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ClasificarTerminoUseCase } from '../../src/application/usecases/ClasificarTerminoUseCase';
 import type { Miembro } from '../../src/domain/entities/Miembro';
+import type { CategoriaPersonalizadaRepositorioPort } from '../../src/domain/ports/out/CategoriaPersonalizadaRepositorioPort';
 import type { ClasificacionRepositorioPort } from '../../src/domain/ports/out/ClasificacionRepositorioPort';
 import type { MiembroRepositorioPort } from '../../src/domain/ports/out/MiembroRepositorioPort';
 
@@ -26,8 +27,25 @@ function crearCaso(acceso: Miembro['acceso'] = 'ESCRITURA') {
     guardar,
   } as unknown as ClasificacionRepositorioPort;
 
+  const categorias = {
+    listar: vi.fn(async () => []),
+    obtener: vi.fn(async (_hogarId: string, id: string) =>
+      id === 'cat:abc'
+        ? {
+            id: 'cat:abc',
+            hogarId: 'h1',
+            nombre: 'Clases de los niños',
+            tipo: 'VARIABLE',
+            esGusto: false,
+            createdAt: '2026-01-01T00:00:00.000Z',
+          }
+        : null,
+    ),
+    crear: vi.fn(async () => undefined),
+  } as unknown as CategoriaPersonalizadaRepositorioPort;
+
   return {
-    useCase: new ClasificarTerminoUseCase(miembros, clasificaciones),
+    useCase: new ClasificarTerminoUseCase(miembros, clasificaciones, categorias),
     guardar,
   };
 }
@@ -69,6 +87,37 @@ describe('ClasificarTerminoUseCase', () => {
     expect(guardar).toHaveBeenCalledWith(
       expect.objectContaining({ termino: 'ias', conceptoId: 'streaming', nota: null }),
     );
+  });
+
+  it('acepta categorías personalizadas del hogar', async () => {
+    const { useCase, guardar } = crearCaso();
+    const resultado = await useCase.ejecutar({
+      hogarId: 'h1',
+      usuarioId: 'u1',
+      termino: 'clases de piano',
+      conceptoId: 'cat:abc',
+    });
+
+    expect(resultado).toMatchObject({
+      conceptoId: 'cat:abc',
+      nombre: 'Clases de los niños',
+    });
+    expect(guardar).toHaveBeenCalledWith(
+      expect.objectContaining({ conceptoId: 'cat:abc', termino: 'clases de piano' }),
+    );
+  });
+
+  it('rechaza categorías personalizadas de otro hogar', async () => {
+    const { useCase, guardar } = crearCaso();
+    await expect(
+      useCase.ejecutar({
+        hogarId: 'h1',
+        usuarioId: 'u1',
+        termino: 'clases de piano',
+        conceptoId: 'cat:otro',
+      }),
+    ).rejects.toMatchObject({ code: 'CONCEPTO_INVALIDO' });
+    expect(guardar).not.toHaveBeenCalled();
   });
 
   it('rechaza miembros de solo lectura', async () => {
