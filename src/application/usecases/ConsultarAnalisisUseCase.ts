@@ -17,6 +17,7 @@ import { CATEGORIA_NOMBRE } from '../../domain/rules/CatalogoConceptos';
 import { NoEncontradoError, NoEsMiembroError } from '../../exception/errors';
 
 type AliasHogar = Record<string, string>;
+type Ejemplos = Map<string, { nombre: string; montoCents: number }>;
 
 function diaSiguiente(iso: string): string {
   const d = new Date(`${iso}T00:00:00Z`);
@@ -42,12 +43,23 @@ function diasEntre(inicio: string, fin: string): number {
   return Math.round((b - a) / 86_400_000) + 1;
 }
 
-function agregarEjemplo(ejemplos: string[], vistos: Set<string>, producto: string): void {
+function agregarEjemplo(ejemplos: Ejemplos, producto: string, montoCents: number): void {
   const nombre = producto.trim();
   const clave = normalizarTermino(nombre);
-  if (!nombre || !clave || vistos.has(clave) || ejemplos.length >= 3) return;
-  vistos.add(clave);
-  ejemplos.push(nombre);
+  if (!nombre || !clave) return;
+
+  const previo = ejemplos.get(clave);
+  if (!previo || montoCents > previo.montoCents) {
+    ejemplos.set(clave, { nombre, montoCents });
+  }
+}
+
+/** Los 3 gastos más grandes del grupo, sin repetir nombres. */
+function topEjemplos(ejemplos: Ejemplos): string[] {
+  return [...ejemplos.values()]
+    .sort((a, b) => b.montoCents - a.montoCents)
+    .slice(0, 3)
+    .map((e) => e.nombre);
 }
 
 export class ConsultarAnalisisUseCase implements ConsultarAnalisisPort {
@@ -159,7 +171,7 @@ export class ConsultarAnalisisUseCase implements ConsultarAnalisisPort {
   private categorias(gastos: Gasto[], alias: AliasHogar): Analisis['categorias'] {
     const mapa = new Map<
       string,
-      { nombre: string; totalCents: number; cantidad: number; ejemplos: string[]; vistos: Set<string> }
+      { nombre: string; totalCents: number; cantidad: number; ejemplos: Ejemplos }
     >();
 
     for (const g of gastos) {
@@ -172,12 +184,11 @@ export class ConsultarAnalisisUseCase implements ConsultarAnalisisPort {
         nombre: CATEGORIA_NOMBRE[categoria],
         totalCents: 0,
         cantidad: 0,
-        ejemplos: [],
-        vistos: new Set<string>(),
+        ejemplos: new Map(),
       };
       actual.totalCents += g.montoCents;
       actual.cantidad += 1;
-      agregarEjemplo(actual.ejemplos, actual.vistos, g.producto);
+      agregarEjemplo(actual.ejemplos, g.producto, g.montoCents);
       mapa.set(categoria, actual);
     }
 
@@ -187,7 +198,7 @@ export class ConsultarAnalisisUseCase implements ConsultarAnalisisPort {
         nombre: valor.nombre,
         totalCents: valor.totalCents,
         cantidad: valor.cantidad,
-        ejemplos: valor.ejemplos,
+        ejemplos: topEjemplos(valor.ejemplos),
       }))
       .sort((a, b) => b.totalCents - a.totalCents);
   }
@@ -195,7 +206,7 @@ export class ConsultarAnalisisUseCase implements ConsultarAnalisisPort {
   private gustos(gastos: Gasto[], alias: AliasHogar): Analisis['gustos'] {
     const mapa = new Map<
       string,
-      { nombre: string; cantidad: number; totalCents: number; ejemplos: string[]; vistos: Set<string> }
+      { nombre: string; cantidad: number; totalCents: number; ejemplos: Ejemplos }
     >();
 
     for (const g of gastos) {
@@ -206,12 +217,11 @@ export class ConsultarAnalisisUseCase implements ConsultarAnalisisPort {
         nombre: clasif.concepto.nombre,
         cantidad: 0,
         totalCents: 0,
-        ejemplos: [],
-        vistos: new Set<string>(),
+        ejemplos: new Map(),
       };
       actual.cantidad += 1;
       actual.totalCents += g.montoCents;
-      agregarEjemplo(actual.ejemplos, actual.vistos, g.producto);
+      agregarEjemplo(actual.ejemplos, g.producto, g.montoCents);
       mapa.set(clasif.concepto.id, actual);
     }
 
@@ -221,7 +231,7 @@ export class ConsultarAnalisisUseCase implements ConsultarAnalisisPort {
         nombre: valor.nombre,
         cantidad: valor.cantidad,
         totalCents: valor.totalCents,
-        ejemplos: valor.ejemplos,
+        ejemplos: topEjemplos(valor.ejemplos),
       }))
       .sort((a, b) => b.totalCents - a.totalCents);
   }
@@ -229,7 +239,7 @@ export class ConsultarAnalisisUseCase implements ConsultarAnalisisPort {
   private sinClasificar(gastos: Gasto[], alias: AliasHogar): SinClasificarAnalisis[] {
     const mapa = new Map<
       string,
-      { termino: string; cantidad: number; totalCents: number; ejemplos: string[]; vistos: Set<string> }
+      { termino: string; cantidad: number; totalCents: number; ejemplos: Ejemplos }
     >();
 
     for (const g of gastos) {
@@ -240,19 +250,18 @@ export class ConsultarAnalisisUseCase implements ConsultarAnalisisPort {
         termino,
         cantidad: 0,
         totalCents: 0,
-        ejemplos: [],
-        vistos: new Set<string>(),
+        ejemplos: new Map(),
       };
       actual.cantidad += 1;
       actual.totalCents += g.montoCents;
-      agregarEjemplo(actual.ejemplos, actual.vistos, g.producto);
+      agregarEjemplo(actual.ejemplos, g.producto, g.montoCents);
       mapa.set(termino, actual);
     }
 
     return [...mapa.values()]
       .map((valor) => ({
         termino: valor.termino,
-        ejemplos: valor.ejemplos,
+        ejemplos: topEjemplos(valor.ejemplos),
         cantidad: valor.cantidad,
         totalCents: valor.totalCents,
       }))

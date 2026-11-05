@@ -67,7 +67,7 @@ export const CONCEPTOS: Concepto[] = [
   c('utiles', 'Útiles escolares', 'educacion', 'VARIABLE', 'ESENCIAL'),
   // Mascotas
   c('comida_mascotas', 'Comida de mascotas', 'mascotas', 'VARIABLE', 'ESENCIAL'),
-  c('veterinario', 'Veterinario', 'mascotas', 'VARIABLE', 'ESENCIAL'),
+  c('veterinario', 'Cuidado de mascotas', 'mascotas', 'VARIABLE', 'ESENCIAL'),
   // Deudas
   c('credito', 'Créditos y tarjetas', 'deudas', 'FIJO', 'ESENCIAL'),
   c('prestamo', 'Préstamos', 'deudas', 'FIJO', 'ESENCIAL'),
@@ -260,9 +260,13 @@ const ALIAS_LIST: Array<[string, string]> = [
   ['veterinario', 'veterinario'],
   ['veterinaria', 'veterinario'],
   ['vacuna', 'veterinario'],
+  ['paseador', 'veterinario'],
+  ['paseador de perros', 'veterinario'],
+  ['paseo perro', 'veterinario'],
   // Deudas
   ['credito', 'credito'],
   ['tarjeta', 'credito'],
+  ['addi', 'credito'],
   ['nu', 'credito'],
   ['banco', 'credito'],
   ['cuota', 'credito'],
@@ -322,6 +326,7 @@ const ALIAS_LIST: Array<[string, string]> = [
   ['chocolate', 'dulces'],
   ['helado', 'dulces'],
   ['malteada', 'dulces'],
+  ['malteadas', 'dulces'],
   ['gomitas', 'dulces'],
   ['cerveza', 'cerveza'],
   ['pola', 'cerveza'],
@@ -350,6 +355,9 @@ const ALIAS_LIST: Array<[string, string]> = [
   ['suscripcion', 'streaming'],
   ['suscripciones', 'streaming'],
   ['ia suscripciones', 'streaming'],
+  ['deepseek', 'streaming'],
+  ['chatgpt', 'streaming'],
+  ['openai', 'streaming'],
   // Cuidado personal
   ['peluqueria', 'peluqueria'],
   ['barberia', 'peluqueria'],
