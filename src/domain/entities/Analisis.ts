@@ -1,9 +1,13 @@
-/** Gasto de ejemplo dentro de una categoría o gusto. */
+/** Término agrupado dentro de una categoría o gusto. */
 export interface EjemploAnalisis {
   /** Nombre original, tal como lo escribió la persona. */
   nombre: string;
   /** Término normalizado que se usa para corregir la clasificación. */
   termino: string;
+  /** Cuántos gastos comparten este término. */
+  cantidad: number;
+  /** Total gastado en este término. */
+  totalCents: number;
 }
 
 export interface CategoriaAnalisis {
@@ -11,7 +15,7 @@ export interface CategoriaAnalisis {
   nombre: string;
   totalCents: number;
   cantidad: number;
-  /** Hasta 3 gastos que alimentan la categoría, elegidos por monto. */
+  /** Gastos que alimentan la categoría, ordenados por monto. */
   ejemplos: EjemploAnalisis[];
 }
 
@@ -20,14 +24,14 @@ export interface GustoAnalisis {
   nombre: string;
   cantidad: number;
   totalCents: number;
-  /** Hasta 3 gastos que alimentan los gusticos, elegidos por monto. */
+  /** Gastos que alimentan los gusticos, ordenados por monto. */
   ejemplos: EjemploAnalisis[];
 }
 
 export interface SinClasificarAnalisis {
   /** Término normalizado, sirve para corregirlo. */
   termino: string;
-  /** Hasta 3 nombres originales del gasto. */
+  /** Nombres originales del gasto. */
   ejemplos: EjemploAnalisis[];
   cantidad: number;
   totalCents: number;

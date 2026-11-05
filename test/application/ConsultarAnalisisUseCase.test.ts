@@ -102,7 +102,9 @@ describe('ConsultarAnalisisUseCase', () => {
 
     const vivienda = analisis.categorias.find((c) => c.categoria === 'vivienda');
     expect(vivienda?.totalCents).toBe(3_000_000);
-    expect(vivienda?.ejemplos).toEqual([{ nombre: 'arriendo', termino: 'arriendo' }]);
+    expect(vivienda?.ejemplos).toEqual([
+      { nombre: 'arriendo', termino: 'arriendo', cantidad: 1, totalCents: 3_000_000 },
+    ]);
 
     expect(analisis.gustos).toHaveLength(1);
     expect(analisis.gustos[0]).toMatchObject({
@@ -110,7 +112,9 @@ describe('ConsultarAnalisisUseCase', () => {
       nombre: 'Gusticos',
       cantidad: 2,
       totalCents: 30_000,
-      ejemplos: [{ nombre: 'coca-cola', termino: 'coca cola' }],
+      ejemplos: [
+        { nombre: 'coca-cola', termino: 'coca cola', cantidad: 2, totalCents: 30_000 },
+      ],
     });
     expect(analisis.sinClasificar).toEqual([]);
   });
@@ -129,7 +133,9 @@ describe('ConsultarAnalisisUseCase', () => {
       termino: 'mama de angel',
       cantidad: 2,
       totalCents: 300_000,
-      ejemplos: [{ nombre: 'mamá de Ángel', termino: 'mama de angel' }],
+      ejemplos: [
+        { nombre: 'mamá de Ángel', termino: 'mama de angel', cantidad: 2, totalCents: 300_000 },
+      ],
     });
     // Lo no clasificado no aparece en "En qué se fue".
     expect(analisis.categorias.map((c) => c.categoria)).toEqual(['vivienda']);
@@ -146,7 +152,9 @@ describe('ConsultarAnalisisUseCase', () => {
     const hogarCategoria = analisis.categorias.find((c) => c.categoria === 'hogar');
     expect(hogarCategoria).toMatchObject({
       totalCents: 150_000,
-      ejemplos: [{ nombre: 'mamá de Ángel', termino: 'mama de angel' }],
+      ejemplos: [
+        { nombre: 'mamá de Ángel', termino: 'mama de angel', cantidad: 1, totalCents: 150_000 },
+      ],
     });
   });
 
@@ -179,6 +187,24 @@ describe('ConsultarAnalisisUseCase', () => {
         cantidad: 2,
       }),
     ]);
+  });
+
+  it('devuelve todos los términos de una categoría, no solo los 3 primeros', async () => {
+    const useCase = crearCaso([
+      gasto('m1', 'mercado ara', 50_000, '2026-11-01'),
+      gasto('m2', 'verduras', 30_000, '2026-11-01'),
+      gasto('m3', 'D1', 20_000, '2026-11-02'),
+      gasto('m4', 'huevos', 10_000, '2026-11-03'),
+    ]);
+    const analisis = await useCase.ejecutar({ hogarId: 'h1', usuarioId: 'u1', hoy: '2026-11-05' });
+
+    const mercado = analisis.categorias.find((c) => c.categoria === 'mercado');
+    expect(mercado?.ejemplos).toHaveLength(4);
+    expect(mercado?.ejemplos[0]).toMatchObject({
+      nombre: 'mercado ara',
+      cantidad: 1,
+      totalCents: 50_000,
+    });
   });
 
   it('suma todos los gusticos en un solo total', async () => {

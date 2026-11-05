@@ -21,7 +21,13 @@ import { CATEGORIA_NOMBRE, CONCEPTOS_BY_ID } from '../../domain/rules/CatalogoCo
 import { NoEncontradoError, NoEsMiembroError } from '../../exception/errors';
 
 type AliasHogar = Record<string, string>;
-type EjemploInterno = { nombre: string; termino: string; montoCents: number };
+type EjemploInterno = {
+  nombre: string;
+  termino: string;
+  cantidad: number;
+  totalCents: number;
+  montoMaxCents: number;
+};
 type Ejemplos = Map<string, EjemploInterno>;
 
 interface ContextoClasificacion {
@@ -68,17 +74,36 @@ function agregarEjemplo(ejemplos: Ejemplos, producto: string, montoCents: number
   if (!nombre || !termino) return;
 
   const previo = ejemplos.get(termino);
-  if (!previo || montoCents > previo.montoCents) {
-    ejemplos.set(termino, { nombre, termino, montoCents });
+  if (!previo) {
+    ejemplos.set(termino, {
+      nombre,
+      termino,
+      cantidad: 1,
+      totalCents: montoCents,
+      montoMaxCents: montoCents,
+    });
+    return;
+  }
+
+  previo.cantidad += 1;
+  previo.totalCents += montoCents;
+  // Mostramos la escritura del gasto más grande del grupo.
+  if (montoCents > previo.montoMaxCents) {
+    previo.nombre = nombre;
+    previo.montoMaxCents = montoCents;
   }
 }
 
-/** Los 3 gastos más grandes del grupo, sin repetir términos. */
-function topEjemplos(ejemplos: Ejemplos): EjemploAnalisis[] {
+/** Todos los términos del grupo, ordenados por total gastado. */
+function todosLosEjemplos(ejemplos: Ejemplos): EjemploAnalisis[] {
   return [...ejemplos.values()]
-    .sort((a, b) => b.montoCents - a.montoCents)
-    .slice(0, 3)
-    .map((e) => ({ nombre: e.nombre, termino: e.termino }));
+    .sort((a, b) => b.totalCents - a.totalCents)
+    .map((e) => ({
+      nombre: e.nombre,
+      termino: e.termino,
+      cantidad: e.cantidad,
+      totalCents: e.totalCents,
+    }));
 }
 
 function nombreCategoria(concepto: ConceptoResuelto): string {
@@ -256,7 +281,7 @@ export class ConsultarAnalisisUseCase implements ConsultarAnalisisPort {
         nombre: valor.nombre,
         totalCents: valor.totalCents,
         cantidad: valor.cantidad,
-        ejemplos: topEjemplos(valor.ejemplos),
+        ejemplos: todosLosEjemplos(valor.ejemplos),
       }))
       .sort((a, b) => b.totalCents - a.totalCents);
   }
@@ -282,7 +307,7 @@ export class ConsultarAnalisisUseCase implements ConsultarAnalisisPort {
         nombre: 'Gusticos',
         cantidad,
         totalCents,
-        ejemplos: topEjemplos(ejemplos),
+        ejemplos: todosLosEjemplos(ejemplos),
       },
     ];
   }
@@ -315,7 +340,7 @@ export class ConsultarAnalisisUseCase implements ConsultarAnalisisPort {
     return [...mapa.values()]
       .map((valor) => ({
         termino: valor.termino,
-        ejemplos: topEjemplos(valor.ejemplos),
+        ejemplos: todosLosEjemplos(valor.ejemplos),
         cantidad: valor.cantidad,
         totalCents: valor.totalCents,
       }))
