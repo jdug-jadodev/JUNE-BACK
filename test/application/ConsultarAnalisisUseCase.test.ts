@@ -3,6 +3,8 @@ import { ConsultarAnalisisUseCase } from '../../src/application/usecases/Consult
 import type { Gasto } from '../../src/domain/entities/Gasto';
 import type { Hogar } from '../../src/domain/entities/Hogar';
 import type { Miembro } from '../../src/domain/entities/Miembro';
+import type { ClasificacionHogar } from '../../src/domain/entities/ClasificacionHogar';
+import type { ClasificacionRepositorioPort } from '../../src/domain/ports/out/ClasificacionRepositorioPort';
 import type { GastoRepositorioPort } from '../../src/domain/ports/out/GastoRepositorioPort';
 import type { HogarRepositorioPort } from '../../src/domain/ports/out/HogarRepositorioPort';
 import type { MiembroRepositorioPort } from '../../src/domain/ports/out/MiembroRepositorioPort';
@@ -42,7 +44,7 @@ function gasto(id: string, producto: string, montoCents: number, fecha: string):
   };
 }
 
-function crearCaso(gastosData: Gasto[]) {
+function crearCaso(gastosData: Gasto[], overrides: ClasificacionHogar[] = []) {
   const gastos = {
     listar: vi.fn(async (_hogarId: string, _filtro?: unknown) => gastosData),
   } as unknown as GastoRepositorioPort;
@@ -55,7 +57,12 @@ function crearCaso(gastosData: Gasto[]) {
     obtener: vi.fn(async () => hogar),
   } as unknown as HogarRepositorioPort;
 
-  return new ConsultarAnalisisUseCase(gastos, miembros, hogares);
+  const clasificaciones = {
+    listar: vi.fn(async () => overrides),
+    guardar: vi.fn(async () => undefined),
+  } as unknown as ClasificacionRepositorioPort;
+
+  return new ConsultarAnalisisUseCase(gastos, miembros, hogares, clasificaciones);
 }
 
 describe('ConsultarAnalisisUseCase', () => {
@@ -81,9 +88,46 @@ describe('ConsultarAnalisisUseCase', () => {
 
     const vivienda = analisis.categorias.find((c) => c.categoria === 'vivienda');
     expect(vivienda?.totalCents).toBe(3_000_000);
+    expect(vivienda?.ejemplos).toEqual(['arriendo']);
 
     const gustos = analisis.gustos.find((g) => g.conceptoId === 'gaseosa');
-    expect(gustos).toMatchObject({ cantidad: 2, totalCents: 30_000 });
+    expect(gustos).toMatchObject({ cantidad: 2, totalCents: 30_000, ejemplos: ['coca-cola'] });
+    expect(analisis.sinClasificar).toEqual([]);
+  });
+
+  it('separa lo que no reconoce con su término y ejemplos', async () => {
+    const useCase = crearCaso([
+      gasto('x1', 'mamá de Ángel', 150_000, '2026-11-01'),
+      gasto('x2', 'Mamá de angel', 150_000, '2026-11-01'),
+      gasto('x3', 'ias', 20_000, '2026-11-02'),
+      gasto('x4', 'arriendo', 3_000_000, '2026-10-29'),
+    ]);
+    const analisis = await useCase.ejecutar({ hogarId: 'h1', usuarioId: 'u1', hoy: '2026-11-05' });
+
+    expect(analisis.sinClasificar).toHaveLength(2);
+    expect(analisis.sinClasificar[0]).toMatchObject({
+      termino: 'mama de angel',
+      cantidad: 2,
+      totalCents: 300_000,
+      ejemplos: ['mamá de Ángel'],
+    });
+    // Lo no clasificado no aparece en "En qué se fue".
+    expect(analisis.categorias.map((c) => c.categoria)).toEqual(['vivienda']);
+  });
+
+  it('usa las correcciones del hogar y su descripción', async () => {
+    const useCase = crearCaso(
+      [gasto('x1', 'mamá de Ángel', 150_000, '2026-11-01')],
+      [{ termino: 'mama de angel', conceptoId: 'ayuda_familiar', nota: 'pago a mi suegra' }],
+    );
+    const analisis = await useCase.ejecutar({ hogarId: 'h1', usuarioId: 'u1', hoy: '2026-11-05' });
+
+    expect(analisis.sinClasificar).toEqual([]);
+    const hogarCategoria = analisis.categorias.find((c) => c.categoria === 'hogar');
+    expect(hogarCategoria).toMatchObject({
+      totalCents: 150_000,
+      ejemplos: ['mamá de Ángel'],
+    });
   });
 
   it('construye la carrera del ciclo actual y anterior', async () => {

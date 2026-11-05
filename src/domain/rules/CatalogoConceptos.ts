@@ -47,7 +47,7 @@ export const CONCEPTOS: Concepto[] = [
   // Comida fuera
   c('restaurante', 'Restaurante', 'comida', 'VARIABLE', 'NECESARIO'),
   c('comida_rapida', 'Comida rápida', 'comida', 'VARIABLE', 'DISCRECIONAL', true),
-  c('callejera', 'Comida callejera', 'comida', 'VARIABLE', 'DISCRECIONAL', true),
+  c('callejera', 'Comida en la calle', 'comida', 'VARIABLE', 'DISCRECIONAL', true),
   c('cafeteria', 'Café y postres', 'comida', 'VARIABLE', 'DISCRECIONAL', true),
   // Transporte
   c('bus', 'Transporte público', 'transporte', 'VARIABLE', 'NECESARIO'),
@@ -78,6 +78,7 @@ export const CONCEPTOS: Concepto[] = [
   c('mantenimiento', 'Reparaciones', 'hogar', 'VARIABLE', 'NECESARIO'),
   c('navidad', 'Navidad', 'hogar', 'VARIABLE', 'DISCRECIONAL'),
   c('regalo', 'Regalos', 'hogar', 'VARIABLE', 'DISCRECIONAL'),
+  c('ayuda_familiar', 'Ayuda a familiares', 'hogar', 'FIJO', 'NECESARIO'),
   c('muebles', 'Muebles y electrodomésticos', 'hogar', 'VARIABLE', 'DISCRECIONAL'),
   // Gustos
   c('gaseosa', 'Gaseosa', 'gustos', 'VARIABLE', 'DISCRECIONAL', true),
@@ -292,6 +293,9 @@ const ALIAS_LIST: Array<[string, string]> = [
   ['bolas navidenas', 'navidad'],
   ['pesebre', 'navidad'],
   ['regalo', 'regalo'],
+  ['suegra', 'ayuda_familiar'],
+  ['ayuda familia', 'ayuda_familiar'],
+  ['ayuda familiar', 'ayuda_familiar'],
   ['mueble', 'muebles'],
   ['nevera', 'muebles'],
   ['estufa', 'muebles'],
@@ -344,6 +348,8 @@ const ALIAS_LIST: Array<[string, string]> = [
   ['hbo', 'streaming'],
   ['disney', 'streaming'],
   ['suscripcion', 'streaming'],
+  ['suscripciones', 'streaming'],
+  ['ia suscripciones', 'streaming'],
   // Cuidado personal
   ['peluqueria', 'peluqueria'],
   ['barberia', 'peluqueria'],

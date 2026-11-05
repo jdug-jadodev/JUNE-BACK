@@ -2,6 +2,7 @@ import type { Hono } from 'hono';
 import { z } from 'zod';
 import type { AppEnv } from '../types';
 import { auth } from '../middleware/auth';
+import { CATEGORIA_NOMBRE, CONCEPTOS } from '../../../domain/rules/CatalogoConceptos';
 
 const fechaSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
@@ -11,12 +12,42 @@ const gastoSchema = z.object({
   fecha: fechaSchema,
 });
 
+const clasificacionSchema = z.object({
+  termino: z.string().min(1).max(120),
+  conceptoId: z.string().min(1),
+  nota: z.string().max(240).optional().nullable(),
+});
+
 const filtroSchema = z.object({
   desde: fechaSchema.optional(),
   hasta: fechaSchema.optional(),
 });
 
 export function expensesRoutes(app: Hono<AppEnv>): void {
+  app.get('/concepts', auth, async (c) => {
+    return c.json(
+      CONCEPTOS.map((concepto) => ({
+        id: concepto.id,
+        nombre: concepto.nombre,
+        categoria: concepto.categoria,
+        categoriaNombre: CATEGORIA_NOMBRE[concepto.categoria],
+        esGusto: concepto.esGusto,
+      })),
+    );
+  });
+
+  app.post('/households/:hid/classification', auth, async (c) => {
+    const body = clasificacionSchema.parse(await c.req.json());
+    const resultado = await c.var.container.clasificarTermino.ejecutar({
+      hogarId: c.req.param('hid'),
+      usuarioId: c.var.usuarioId,
+      termino: body.termino,
+      conceptoId: body.conceptoId,
+      nota: body.nota,
+    });
+    return c.json(resultado);
+  });
+
   app.get('/households/:hid/expenses/months', auth, async (c) => {
     const meses = await c.var.container.consultarGastos.meses({
       hogarId: c.req.param('hid'),

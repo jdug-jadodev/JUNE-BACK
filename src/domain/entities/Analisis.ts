@@ -3,11 +3,24 @@ export interface CategoriaAnalisis {
   nombre: string;
   totalCents: number;
   cantidad: number;
+  /** Hasta 3 nombres de gastos que alimentan la categoría. */
+  ejemplos: string[];
 }
 
 export interface GustoAnalisis {
   conceptoId: string;
   nombre: string;
+  cantidad: number;
+  totalCents: number;
+  /** Hasta 3 nombres de gastos que alimentan el gusto. */
+  ejemplos: string[];
+}
+
+export interface SinClasificarAnalisis {
+  /** Término normalizado, sirve para corregirlo. */
+  termino: string;
+  /** Hasta 3 nombres originales del gasto. */
+  ejemplos: string[];
   cantidad: number;
   totalCents: number;
 }
@@ -31,8 +44,6 @@ export interface ProyeccionAnalisis {
   diasTotales: number;
   /** Ritmo diario de gasto variable, en centavos (pesos enteros). */
   ritmoDiarioCents: number;
-  /** Proyección a fin de ciclo: variable proyectado + fijos ya registrados. */
-  estimadoFinCicloCents: number;
   /** Ritmo variable del ciclo anterior. */
   ritmoAnteriorCents: number;
   variableCents: number;
@@ -51,6 +62,7 @@ export interface Analisis {
   };
   categorias: CategoriaAnalisis[];
   gustos: GustoAnalisis[];
+  sinClasificar: SinClasificarAnalisis[];
   carrera: CarreraCiclo[];
   proyeccion: ProyeccionAnalisis;
 }

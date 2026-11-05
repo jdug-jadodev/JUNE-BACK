@@ -44,4 +44,10 @@ describe('clasificar', () => {
     expect(clasificar('cerveza')?.concepto.esGusto).toBe(true);
     expect(clasificar('arriendo')?.concepto.esGusto).toBe(false);
   });
+
+  it('reconoce suscripciones escritas de varias formas', () => {
+    expect(clasificar('ia suscripciones')?.concepto.id).toBe('streaming');
+    expect(clasificar('suscripciones')?.concepto.id).toBe('streaming');
+    expect(clasificar('Netflix')?.concepto.id).toBe('streaming');
+  });
 });
