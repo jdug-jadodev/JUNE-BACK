@@ -33,6 +33,20 @@ export function expensesRoutes(app: Hono<AppEnv>): void {
     return c.json(ciclos);
   });
 
+  app.get('/households/:hid/insights', auth, async (c) => {
+    const cyclesParam = c.req.query('ciclos');
+    const ciclos = cyclesParam
+      ? cyclesParam.split(',').map((x) => x.trim()).filter(Boolean)
+      : undefined;
+
+    const analisis = await c.var.container.consultarAnalisis.ejecutar({
+      hogarId: c.req.param('hid'),
+      usuarioId: c.var.usuarioId,
+      ciclos,
+    });
+    return c.json(analisis);
+  });
+
   app.get('/households/:hid/expenses', auth, async (c) => {
     const filtro = filtroSchema.parse({
       desde: c.req.query('desde'),

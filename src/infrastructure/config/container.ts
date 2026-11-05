@@ -1,5 +1,6 @@
 import type { AutenticacionPort } from '../../domain/ports/in/AutenticacionPort';
 import type { ConsultarGastosPort } from '../../domain/ports/in/ConsultarGastosPort';
+import type { ConsultarAnalisisPort } from '../../domain/ports/in/ConsultarAnalisisPort';
 import type { ActualizarGastoPort } from '../../domain/ports/in/ActualizarGastoPort';
 import type { EliminarGastoPort } from '../../domain/ports/in/EliminarGastoPort';
 import type { GestionarHogarPort } from '../../domain/ports/in/GestionarHogarPort';
@@ -11,6 +12,7 @@ import type { TokenPort } from '../../domain/ports/out/TokenPort';
 import { ActualizarGastoUseCase } from '../../application/usecases/ActualizarGastoUseCase';
 import { AutenticacionUseCase } from '../../application/usecases/AutenticacionUseCase';
 import { ConsultarGastosUseCase } from '../../application/usecases/ConsultarGastosUseCase';
+import { ConsultarAnalisisUseCase } from '../../application/usecases/ConsultarAnalisisUseCase';
 import { EliminarGastoUseCase } from '../../application/usecases/EliminarGastoUseCase';
 import { ExportarGastosUseCase } from '../../application/usecases/ExportarGastosUseCase';
 import { GestionarHogarUseCase } from '../../application/usecases/GestionarHogarUseCase';
@@ -35,6 +37,7 @@ export interface Container {
   actualizarGasto: ActualizarGastoPort;
   eliminarGasto: EliminarGastoPort;
   consultarGastos: ConsultarGastosPort;
+  consultarAnalisis: ConsultarAnalisisPort;
   exportarGastos: ExportarGastosPort;
   seguridad: SeguridadPort;
 }
@@ -63,6 +66,7 @@ export function buildContainer(env: Env): Container {
     actualizarGasto: new ActualizarGastoUseCase(gastos, miembros, hogares, passwordHash),
     eliminarGasto: new EliminarGastoUseCase(gastos, miembros, hogares, passwordHash),
     consultarGastos: new ConsultarGastosUseCase(gastos, miembros, hogares),
+    consultarAnalisis: new ConsultarAnalisisUseCase(gastos, miembros, hogares),
     exportarGastos: new ExportarGastosUseCase(gastos, miembros, hogares),
     seguridad: new SeguridadUseCase(usuarios, passwordHash, refreshTokens),
   };
