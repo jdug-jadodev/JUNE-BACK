@@ -29,9 +29,14 @@ export interface CarreraCiclo {
 export interface ProyeccionAnalisis {
   diasTranscurridos: number;
   diasTotales: number;
+  /** Ritmo diario de gasto variable, en centavos (pesos enteros). */
   ritmoDiarioCents: number;
+  /** Proyección a fin de ciclo: variable proyectado + fijos ya registrados. */
   estimadoFinCicloCents: number;
+  /** Ritmo variable del ciclo anterior. */
   ritmoAnteriorCents: number;
+  variableCents: number;
+  fijoCents: number;
 }
 
 export interface Analisis {

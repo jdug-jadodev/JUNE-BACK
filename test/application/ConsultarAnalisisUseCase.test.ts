@@ -94,22 +94,25 @@ describe('ConsultarAnalisisUseCase', () => {
     const actual = analisis.carrera.find((c) => c.etiqueta === 'actual')!;
     const anterior = analisis.carrera.find((c) => c.etiqueta === 'anterior')!;
 
-    // Del 29 oct al 5 nov son 8 días.
+    // Del 29 oct al 5 nov son 8 días. El anterior se alinea a los mismos 8 días.
     expect(actual.dias).toHaveLength(8);
     expect(actual.dias[0].acumuladoCents).toBe(3_000_000);
     expect(actual.dias[actual.dias.length - 1].acumuladoCents).toBe(3_034_000);
 
-    expect(anterior.dias).toHaveLength(30);
+    expect(anterior.dias).toHaveLength(8);
     expect(anterior.dias[0].acumuladoCents).toBe(3_000_000);
   });
 
-  it('calcula la proyección con ritmo diario', async () => {
+  it('calcula la proyección solo con gasto variable', async () => {
     const useCase = crearCaso(data);
     const analisis = await useCase.ejecutar({ hogarId: 'h1', usuarioId: 'u1', hoy: '2026-11-05' });
 
     expect(analisis.proyeccion.diasTotales).toBe(31);
     expect(analisis.proyeccion.diasTranscurridos).toBe(8);
-    expect(analisis.proyeccion.ritmoDiarioCents).toBe(Math.round(3_034_000 / 8));
+    // Variable = 34.000 en 8 días -> 4.250/día -> 4.300 en pesos enteros.
+    expect(analisis.proyeccion.ritmoDiarioCents).toBe(4_300);
+    expect(analisis.proyeccion.variableCents).toBe(34_000);
+    expect(analisis.proyeccion.fijoCents).toBe(3_000_000);
   });
 
   it('acepta varios ciclos objetivo', async () => {

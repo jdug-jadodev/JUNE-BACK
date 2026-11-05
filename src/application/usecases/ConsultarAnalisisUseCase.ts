@@ -16,6 +16,12 @@ function diaSiguiente(iso: string): string {
   return d.toISOString().slice(0, 10);
 }
 
+function diaSuma(iso: string, n: number): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
 function diaAnterior(iso: string): string {
   const d = new Date(`${iso}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() - 1);
@@ -74,10 +80,16 @@ export class ConsultarAnalisisUseCase implements ConsultarAnalisisPort {
     const resumen = this.resumen(objetivo);
     const categorias = this.categorias(objetivo);
     const gustos = this.gustos(objetivo);
-    const carrera = [
-      this.carrera(actual, cicloActual.inicio, cicloActual.fin, hoy, 'actual'),
-      this.carrera(anterior, cicloAnterior.inicio, cicloAnterior.fin, hoy, 'anterior'),
-    ];
+    const carreraActual = this.carrera(actual, cicloActual.inicio, cicloActual.fin, hoy, 'actual');
+    const carreraAnterior = this.carrera(
+      anterior,
+      cicloAnterior.inicio,
+      cicloAnterior.fin,
+      hoy,
+      'anterior',
+      carreraActual.dias.length,
+    );
+    const carrera = [carreraActual, carreraAnterior];
     const proyeccion = this.proyeccion(actual, anterior, cicloActual, hoy);
 
     return { ciclos: ciclosObjetivo, resumen, categorias, gustos, carrera, proyeccion };
@@ -150,8 +162,14 @@ export class ConsultarAnalisisUseCase implements ConsultarAnalisisPort {
     fin: string,
     hoy: string,
     etiqueta: CarreraCiclo['etiqueta'],
+    maxDias?: number,
   ): CarreraCiclo {
-    const finReal = etiqueta === 'actual' && hoy < fin ? hoy : fin;
+    let finReal = etiqueta === 'actual' && hoy < fin ? hoy : fin;
+    if (maxDias !== undefined) {
+      const limite = diaSuma(inicio, maxDias - 1);
+      if (limite < finReal) finReal = limite;
+    }
+
     const porDia = new Map<string, number>();
     for (const g of gastos) porDia.set(g.fecha, (porDia.get(g.fecha) ?? 0) + g.montoCents);
 
@@ -165,6 +183,10 @@ export class ConsultarAnalisisUseCase implements ConsultarAnalisisPort {
     return { etiqueta, inicio, fin, dias };
   }
 
+  private esFijo(g: Gasto): boolean {
+    return clasificar(g.producto)?.concepto.tipo === 'FIJO';
+  }
+
   private proyeccion(
     actual: Gasto[],
     anterior: Gasto[],
@@ -174,18 +196,23 @@ export class ConsultarAnalisisUseCase implements ConsultarAnalisisPort {
     const diasTotales = diasEntre(cicloActual.inicio, cicloActual.fin);
     const transcurridos = Math.max(1, Math.min(diasEntre(cicloActual.inicio, hoy), diasTotales));
 
-    const totalActual = actual.reduce((s, g) => s + g.montoCents, 0);
-    const totalAnterior = anterior.reduce((s, g) => s + g.montoCents, 0);
+    const variableActual = actual.reduce((s, g) => s + (this.esFijo(g) ? 0 : g.montoCents), 0);
+    const fijoActual = actual.reduce((s, g) => s + (this.esFijo(g) ? g.montoCents : 0), 0);
+    const variableAnterior = anterior.reduce((s, g) => s + (this.esFijo(g) ? 0 : g.montoCents), 0);
 
-    const ritmoDiario = Math.round(totalActual / transcurridos);
-    const ritmoAnterior = Math.round(totalAnterior / diasTotales);
+    // Ritmos en pesos enteros (múltiplos de 100 centavos).
+    const ritmoDiario = Math.round(variableActual / transcurridos / 100) * 100;
+    const ritmoAnterior = Math.round(variableAnterior / diasTotales / 100) * 100;
+    const estimado = ritmoDiario * diasTotales + fijoActual;
 
     return {
       diasTranscurridos: transcurridos,
       diasTotales,
       ritmoDiarioCents: ritmoDiario,
-      estimadoFinCicloCents: ritmoDiario * diasTotales,
+      estimadoFinCicloCents: estimado,
       ritmoAnteriorCents: ritmoAnterior,
+      variableCents: variableActual,
+      fijoCents: fijoActual,
     };
   }
 }
