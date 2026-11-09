@@ -56,8 +56,9 @@ const ANALISIS_PROMPT = [
   'Reglas:',
   '- "estado": una sola frase útil y nueva. Ten en cuenta los días que faltan y el tamaño del hogar. NO repitas que vivienda es lo más caro; enfócate en lo que no es obvio.',
   '- "sugerencias": una entrada por CADA categoría de la lista "Montos sugeridos", copiando el nombre exacto. No agregues categorías nuevas ni cambies montos.',
-  '- "nota": máximo 12 palabras, explica para qué sirve ese monto EN ESTE hogar (menciona a la familia si aplica).',
+  '- "nota": máximo 12 palabras, explica para qué sirve ese monto EN ESTE hogar. No escribas números de personas ni cifras; di "la familia" o "el hogar".',
   '- "recomendacion": una sola frase concreta de acción, sin escribir montos.',
+  '- Si la carga fija o las deudas son altas, la recomendación debe priorizar explícitamente lo esencial y el pago de deudas antes que los gustos.',
   '- Sin regañar, sin "deberías", sin generalidades.',
 ].join('\n');
 

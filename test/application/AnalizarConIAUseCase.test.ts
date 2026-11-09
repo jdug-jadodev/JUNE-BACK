@@ -128,8 +128,8 @@ describe('AnalizarConIAUseCase', () => {
       'Restaurantes',
       'Ropa y calzado',
     ]);
-    // 3 integrantes, sin ingreso: $30.000 por persona a la semana.
-    expect(resultado.sugerencias[0].montoCents).toBe(9_000_000);
+    // 3 integrantes, sin ingreso: $25.000 por persona a la semana.
+    expect(resultado.sugerencias[0].montoCents).toBe(7_500_000);
     expect(resultado.sugerencias[0].nota).toBe('Antojos de la familia.');
     expect(resultado.sugerencias[1].nota).not.toBe('');
     expect(resultado.cacheado).toBe(false);
@@ -142,8 +142,8 @@ describe('AnalizarConIAUseCase', () => {
 
     const resultado = await useCase.analizar({ hogarId: 'h1', usuarioId: 'u1' });
 
-    expect(resultado.sugerencias[0].montoCents).toBe(18_000_000);
-    expect(resultado.sugerencias[3].montoCents).toBe(54_000_000);
+    expect(resultado.sugerencias[0].montoCents).toBe(15_000_000);
+    expect(resultado.sugerencias[3].montoCents).toBe(36_000_000);
   });
 
   it('usa el número de personas que la app envía desde el teléfono', async () => {
@@ -156,8 +156,8 @@ describe('AnalizarConIAUseCase', () => {
     });
 
     expect(resultado.personasEstimadas).toBe(8);
-    expect(resultado.sugerencias[0].montoCents).toBe(24_000_000);
-    expect(resultado.sugerencias[3].montoCents).toBe(72_000_000);
+    expect(resultado.sugerencias[0].montoCents).toBe(20_000_000);
+    expect(resultado.sugerencias[3].montoCents).toBe(48_000_000);
   });
 
   it('falla si no hay IA disponible', async () => {

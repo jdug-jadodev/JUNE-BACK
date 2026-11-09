@@ -18,6 +18,10 @@ export interface PerfilHogar {
   nivelCostoVida: NivelCostoVida;
   mercadoMensualCents: number;
   mercadoPorPersonaCents: number;
+  /** Deudas y pagos estimados al mes. */
+  deudasMensualCents: number;
+  /** Porcentaje del ingreso mensual que se va en deudas (0-100). */
+  deudasPct: number;
   /** Dinero mensual razonable para gustos, ocio, restaurantes y ropa. */
   discrecionalMensualCents: number;
   referencias: SugerenciaIA[];
@@ -26,12 +30,15 @@ export interface PerfilHogar {
 const pesos = (n: number): number => Math.round(n * 100);
 const SEMANAS_POR_MES = 52 / 12;
 
-/** Montos base por persona, en pesos colombianos. */
+/**
+ * Montos base por persona, en pesos colombianos. Son deliberadamente austeros:
+ * en un hogar con deudas lo primero es cubrir lo esencial, no el gusto.
+ */
 const BASE_POR_PERSONA = {
-  gusticosSemana: pesos(30_000),
-  ocioSemana: pesos(50_000),
-  restaurantesSemana: pesos(40_000),
-  ropaMes: pesos(90_000),
+  gusticosSemana: pesos(25_000),
+  ocioSemana: pesos(35_000),
+  restaurantesSemana: pesos(30_000),
+  ropaMes: pesos(60_000),
 };
 
 const SENALES_NINOS = [
@@ -158,8 +165,18 @@ export function inferirPerfilHogar(
   const nivelCostoVida: NivelCostoVida =
     cargaFijaPct >= 55 ? 'ALTO' : cargaFijaPct >= 35 ? 'MEDIO' : 'BAJO';
 
+  // Las deudas son un gasto fijo del ciclo: no se extrapolan por día como el
+  // mercado, porque suelen pagarse una vez al mes. Ya están dentro de la carga
+  // fija; se reportan aparte para que la IA priorice lo esencial.
+  const deudasCiclo = (categoria('deudas')?.totalCents ?? 0) / ciclos;
+  const deudasMensualCents = Math.round(deudasCiclo);
+  const deudasPct =
+    ingresoMensualCents > 0
+      ? Math.min(100, Math.round((deudasMensualCents / ingresoMensualCents) * 100))
+      : 0;
+
   const factorDiscrecional =
-    cargaFijaPct >= 65 ? 0.08 : cargaFijaPct >= 50 ? 0.11 : cargaFijaPct >= 35 ? 0.15 : 0.18;
+    cargaFijaPct >= 65 ? 0.06 : cargaFijaPct >= 50 ? 0.08 : cargaFijaPct >= 35 ? 0.1 : 0.14;
 
   const mensualBase =
     (BASE_POR_PERSONA.gusticosSemana +
@@ -215,6 +232,8 @@ export function inferirPerfilHogar(
     mercadoMensualCents,
     mercadoPorPersonaCents:
       personasEstimadas > 0 ? Math.round(mercadoMensualCents / personasEstimadas) : 0,
+    deudasMensualCents,
+    deudasPct,
     discrecionalMensualCents: Math.round(
       (referencias[0].montoCents + referencias[1].montoCents + referencias[2].montoCents) *
         SEMANAS_POR_MES +

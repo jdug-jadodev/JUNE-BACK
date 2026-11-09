@@ -74,20 +74,46 @@ describe('inferirPerfilHogar', () => {
     const perfil = inferirPerfilHogar(crearAnalisis(), pesos(15_900_000), 4);
     const [gusticos, ocio, restaurantes, ropa] = perfil.referencias;
 
-    // Antes eran $40.000 de ropa para toda la familia; ahora escala por persona.
-    expect(ropa.montoCents).toBeGreaterThanOrEqual(pesos(300_000));
-    expect(gusticos.montoCents).toBeGreaterThanOrEqual(pesos(100_000));
-    expect(ocio.montoCents).toBeGreaterThanOrEqual(pesos(150_000));
-    expect(restaurantes.montoCents).toBeGreaterThanOrEqual(pesos(120_000));
-    expect(perfil.discrecionalMensualCents).toBeLessThanOrEqual(pesos(15_900_000) * 0.18);
+    // Escala por persona, pero sin volverse impagable para un hogar endeudado.
+    expect(ropa.montoCents).toBeGreaterThanOrEqual(pesos(200_000));
+    expect(ropa.montoCents).toBeLessThanOrEqual(pesos(300_000));
+    expect(gusticos.montoCents).toBeGreaterThanOrEqual(pesos(80_000));
+    expect(ocio.montoCents).toBeGreaterThanOrEqual(pesos(100_000));
+    expect(restaurantes.montoCents).toBeGreaterThanOrEqual(pesos(90_000));
+    expect(perfil.discrecionalMensualCents).toBeLessThanOrEqual(pesos(15_900_000) * 0.12);
   });
 
   it('sin ingresos registrados no recorta los montos por persona', () => {
     const perfil = inferirPerfilHogar(crearAnalisis(), 0, 1);
 
     expect(perfil.cargaFijaPct).toBe(0);
-    expect(perfil.referencias[0].montoCents).toBe(pesos(30_000) * perfil.personasEstimadas);
-    expect(perfil.referencias[3].montoCents).toBe(pesos(90_000) * perfil.personasEstimadas);
+    expect(perfil.referencias[0].montoCents).toBe(pesos(25_000) * perfil.personasEstimadas);
+    expect(perfil.referencias[3].montoCents).toBe(pesos(60_000) * perfil.personasEstimadas);
+  });
+
+  it('reporta las deudas y recorta el dinero discrecional con carga fija alta', () => {
+    const sinDeudas = inferirPerfilHogar(crearAnalisis(), pesos(15_900_000), 4);
+    const conDeudas = inferirPerfilHogar(
+      crearAnalisis({
+        resumen: { ...crearAnalisis().resumen, fijosCents: pesos(10_000_000) },
+        categorias: [
+          ...crearAnalisis().categorias,
+          {
+            categoria: 'deudas',
+            nombre: 'Deudas y pagos',
+            totalCents: pesos(4_500_000),
+            cantidad: 1,
+            ejemplos: [],
+          },
+        ],
+      }),
+      pesos(15_900_000),
+      4,
+    );
+
+    expect(conDeudas.deudasPct).toBeGreaterThanOrEqual(25);
+    expect(conDeudas.cargaFijaPct).toBeGreaterThan(sinDeudas.cargaFijaPct);
+    expect(conDeudas.discrecionalMensualCents).toBeLessThan(sinDeudas.discrecionalMensualCents);
   });
 
   it('respeta el número de personas ajustado localmente', () => {

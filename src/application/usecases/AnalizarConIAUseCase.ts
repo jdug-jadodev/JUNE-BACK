@@ -111,7 +111,7 @@ export class AnalizarConIAUseCase implements AnalizarConIAPort {
     perfil: PerfilHogar,
   ): string {
     return JSON.stringify({
-      version: 5,
+      version: 7,
       ciclos: [...ciclos].sort(),
       totalCents: analisis.resumen.totalCents,
       cantidad: analisis.resumen.cantidad,
@@ -125,6 +125,7 @@ export class AnalizarConIAUseCase implements AnalizarConIAPort {
         bebe: perfil.hayBebe,
         mascotas: perfil.hayMascotas,
         cargaFijaPct: perfil.cargaFijaPct,
+        deudasPct: perfil.deudasPct,
         referencias: perfil.referencias.map((r) => [r.categoria, r.montoCents, r.periodicidad]),
       },
     });
@@ -227,9 +228,20 @@ export class AnalizarConIAUseCase implements AnalizarConIAPort {
           `(${formatearPesos(perfil.mercadoPorPersonaCents)} por persona).`,
       );
     }
+    if (perfil.deudasMensualCents > 0) {
+      lineas.push(
+        `- Deudas y pagos al mes: ${formatearPesos(perfil.deudasMensualCents)} ` +
+          `(${perfil.deudasPct}% del ingreso).`,
+      );
+    }
     lineas.push(
       `- Dinero razonable para gustos, ocio, restaurantes y ropa: ${formatearPesos(perfil.discrecionalMensualCents)} al mes.`,
     );
+    if (perfil.cargaFijaPct >= 45 || perfil.deudasPct >= 15) {
+      lineas.push(
+        '- La carga fija y las deudas son altas: prioriza lo esencial (mercado, servicios, deudas) antes que los gustos.',
+      );
+    }
 
     lineas.push('');
     lineas.push('Montos sugeridos (ya calculados para todo el hogar; NO los cambies):');
