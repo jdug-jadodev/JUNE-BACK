@@ -22,6 +22,10 @@ const categoriaSchema = z.object({
   nombre: z.string().trim().min(2).max(40),
 });
 
+const aiInsightsSchema = z.object({
+  ciclos: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
+});
+
 const filtroSchema = z.object({
   desde: fechaSchema.optional(),
   hasta: fechaSchema.optional(),
@@ -96,6 +100,16 @@ export function expensesRoutes(app: Hono<AppEnv>): void {
       hogarId: c.req.param('hid'),
       usuarioId: c.var.usuarioId,
       ciclos,
+    });
+    return c.json(analisis);
+  });
+
+  app.post('/households/:hid/ai-insights', auth, async (c) => {
+    const body = aiInsightsSchema.parse(await c.req.json());
+    const analisis = await c.var.container.analizarConIA.analizar({
+      hogarId: c.req.param('hid'),
+      usuarioId: c.var.usuarioId,
+      ciclos: body.ciclos,
     });
     return c.json(analisis);
   });

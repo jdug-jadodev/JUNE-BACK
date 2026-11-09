@@ -1,6 +1,7 @@
 import type { AutenticacionPort } from '../../domain/ports/in/AutenticacionPort';
 import type { ConsultarGastosPort } from '../../domain/ports/in/ConsultarGastosPort';
 import type { ConsultarAnalisisPort } from '../../domain/ports/in/ConsultarAnalisisPort';
+import type { AnalizarConIAPort } from '../../domain/ports/in/AnalizarConIAPort';
 import type { ActualizarGastoPort } from '../../domain/ports/in/ActualizarGastoPort';
 import type { EliminarGastoPort } from '../../domain/ports/in/EliminarGastoPort';
 import type { GestionarHogarPort } from '../../domain/ports/in/GestionarHogarPort';
@@ -16,6 +17,7 @@ import { ActualizarGastoUseCase } from '../../application/usecases/ActualizarGas
 import { AutenticacionUseCase } from '../../application/usecases/AutenticacionUseCase';
 import { ConsultarGastosUseCase } from '../../application/usecases/ConsultarGastosUseCase';
 import { ConsultarAnalisisUseCase } from '../../application/usecases/ConsultarAnalisisUseCase';
+import { AnalizarConIAUseCase } from '../../application/usecases/AnalizarConIAUseCase';
 import { ClasificarTerminoUseCase } from '../../application/usecases/ClasificarTerminoUseCase';
 import { ClasificarConIAUseCase } from '../../application/usecases/ClasificarConIAUseCase';
 import { GestionarCategoriasUseCase } from '../../application/usecases/GestionarCategoriasUseCase';
@@ -30,6 +32,7 @@ import { GastoD1Adapter } from '../d1/repositories/GastoD1Adapter';
 import { ClasificacionD1Adapter } from '../d1/repositories/ClasificacionD1Adapter';
 import { CategoriaPersonalizadaD1Adapter } from '../d1/repositories/CategoriaPersonalizadaD1Adapter';
 import { AIClasificacionD1Adapter } from '../d1/repositories/AIClasificacionD1Adapter';
+import { AnalisisIAD1Adapter } from '../d1/repositories/AnalisisIAD1Adapter';
 import { IngresoD1Adapter } from '../d1/repositories/IngresoD1Adapter';
 import { HogarD1Adapter } from '../d1/repositories/HogarD1Adapter';
 import { MiembroD1Adapter } from '../d1/repositories/MiembroD1Adapter';
@@ -50,6 +53,7 @@ export interface Container {
   eliminarGasto: EliminarGastoPort;
   consultarGastos: ConsultarGastosPort;
   consultarAnalisis: ConsultarAnalisisPort;
+  analizarConIA: AnalizarConIAPort;
   clasificarTermino: ClasificarTerminoPort;
   gestionarCategorias: GestionarCategoriasPort;
   gestionarIngresos: GestionarIngresosPort;
@@ -63,6 +67,7 @@ export function buildContainer(env: Env): Container {
   const categorias = new CategoriaPersonalizadaD1Adapter(env.DB);
   const ingresos = new IngresoD1Adapter(env.DB);
   const aiClasificaciones = new AIClasificacionD1Adapter(env.DB);
+  const analisisIA = new AnalisisIAD1Adapter(env.DB);
   const miembros = new MiembroD1Adapter(env.DB);
   const hogares = new HogarD1Adapter(env.DB);
   const usuarios = new UsuarioD1Adapter(env.DB);
@@ -75,6 +80,23 @@ export function buildContainer(env: Env): Container {
     : null;
   const presupuestoIA = Number.parseFloat(env.IA_PRESUPUESTO_MES_USD ?? '5') || 5;
   const clasificarConIA = new ClasificarConIAUseCase(aiClasificaciones, deepseek, presupuestoIA);
+
+  const consultarAnalisis = new ConsultarAnalisisUseCase(
+    gastos,
+    miembros,
+    hogares,
+    clasificaciones,
+    categorias,
+    clasificarConIA,
+  );
+  const analizarConIA = new AnalizarConIAUseCase(
+    consultarAnalisis,
+    ingresos,
+    analisisIA,
+    aiClasificaciones,
+    deepseek,
+    presupuestoIA,
+  );
 
   return {
     token,
@@ -91,14 +113,8 @@ export function buildContainer(env: Env): Container {
     actualizarGasto: new ActualizarGastoUseCase(gastos, miembros, hogares, passwordHash),
     eliminarGasto: new EliminarGastoUseCase(gastos, miembros, hogares, passwordHash),
     consultarGastos: new ConsultarGastosUseCase(gastos, miembros, hogares),
-    consultarAnalisis: new ConsultarAnalisisUseCase(
-      gastos,
-      miembros,
-      hogares,
-      clasificaciones,
-      categorias,
-      clasificarConIA,
-    ),
+    consultarAnalisis,
+    analizarConIA,
     clasificarTermino: new ClasificarTerminoUseCase(miembros, clasificaciones, categorias),
     gestionarCategorias: new GestionarCategoriasUseCase(miembros, categorias),
     gestionarIngresos: new GestionarIngresosUseCase(miembros, ingresos),

@@ -13,12 +13,18 @@ export interface RespuestaIA {
   tokensOut: number;
 }
 
+export interface RespuestaTextoIA {
+  texto: string;
+  tokensIn: number;
+  tokensOut: number;
+}
+
 interface DeepSeekResponse {
   choices?: Array<{ message?: { content?: string } }>;
   usage?: { prompt_tokens?: number; completion_tokens?: number };
 }
 
-const SYSTEM_PROMPT = [
+const CLASIFICACION_PROMPT = [
   'Eres un clasificador de gastos de un hogar en Colombia.',
   'Recibes un catálogo de categorías y una lista de nombres de gastos.',
   'Debes asignar a cada gasto el id de concepto del catálogo que mejor le corresponda.',
@@ -27,6 +33,19 @@ const SYSTEM_PROMPT = [
   'Responde ÚNICAMENTE con JSON válido, sin texto adicional, con esta forma:',
   '{"clasificaciones":[{"termino":"...","conceptoId":"...","confianza":0.9,"explicacion":"..."}]}',
   'La "confianza" es un número entre 0 y 1.',
+].join('\n');
+
+const ANALISIS_PROMPT = [
+  'Eres un asesor financiero amable para una familia en Colombia.',
+  'Recibes un resumen de los gastos del hogar y sus ingresos.',
+  'Debes: detectar patrones de gasto, comparar gastos contra ingresos y dar ideas para gastar menos sin sacrificar lo importante.',
+  'Reglas:',
+  '- Nunca digas "deberías", "estás gastando demasiado" ni regañes.',
+  '- Compara contra el historial propio, no contra metas impuestas.',
+  '- Da UNA sola recomendación práctica y concreta.',
+  '- Usa cifras completas en pesos colombianos.',
+  '- Responde en un texto corto y claro (máximo 4 párrafos), con un tono cálido.',
+  '- Termina con una sola línea de acción.',
 ].join('\n');
 
 export class DeepSeekAdapter {
@@ -40,7 +59,37 @@ export class DeepSeekAdapter {
     catalogo: ConceptoCatalogo[],
   ): Promise<RespuestaIA> {
     const userContent = JSON.stringify({ catalogo, terminos });
+    const { contenido, tokensIn, tokensOut } = await this.completar(
+      CLASIFICACION_PROMPT,
+      userContent,
+      800,
+      0,
+    );
 
+    return {
+      resultados: this.parsearClasificaciones(contenido),
+      tokensIn,
+      tokensOut,
+    };
+  }
+
+  async analizar(resumen: string): Promise<RespuestaTextoIA> {
+    const { contenido, tokensIn, tokensOut } = await this.completar(
+      ANALISIS_PROMPT,
+      resumen,
+      1200,
+      0.3,
+    );
+
+    return { texto: contenido.trim(), tokensIn, tokensOut };
+  }
+
+  private async completar(
+    systemPrompt: string,
+    userContent: string,
+    maxTokens: number,
+    temperature: number,
+  ): Promise<{ contenido: string; tokensIn: number; tokensOut: number }> {
     const response = await fetch('https://api.deepseek.com/chat/completions', {
       method: 'POST',
       headers: {
@@ -50,12 +99,11 @@ export class DeepSeekAdapter {
       body: JSON.stringify({
         model: this.model,
         messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'system', content: systemPrompt },
           { role: 'user', content: userContent },
         ],
-        temperature: 0,
-        max_tokens: 800,
-        response_format: { type: 'json_object' },
+        temperature,
+        max_tokens: maxTokens,
       }),
     });
 
@@ -64,17 +112,14 @@ export class DeepSeekAdapter {
     }
 
     const data = (await response.json()) as DeepSeekResponse;
-    const content = data.choices?.[0]?.message?.content ?? '';
-    const resultados = this.parsear(content);
-
     return {
-      resultados,
+      contenido: data.choices?.[0]?.message?.content ?? '',
       tokensIn: data.usage?.prompt_tokens ?? 0,
       tokensOut: data.usage?.completion_tokens ?? 0,
     };
   }
 
-  private parsear(content: string): ResultadoIAClasificacion[] {
+  private parsearClasificaciones(content: string): ResultadoIAClasificacion[] {
     try {
       const json = JSON.parse(content) as {
         clasificaciones?: Array<{
