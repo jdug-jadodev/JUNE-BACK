@@ -1,4 +1,5 @@
 import type { Hogar } from '../../entities/Hogar';
+import type { Plan } from '../../enums/Plan';
 
 export interface GestionarHogarPort {
   crear(input: { usuarioId: string; nombre: string }): Promise<Hogar>;
@@ -10,4 +11,5 @@ export interface GestionarHogarPort {
     usuarioId: string;
     cutoffDay: number;
   }): Promise<Hogar>;
+  configurarPlan(input: { hogarId: string; usuarioId: string; plan: Plan }): Promise<Hogar>;
 }

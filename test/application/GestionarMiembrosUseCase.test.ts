@@ -52,6 +52,7 @@ function crearCaso(solicitante: Miembro) {
     adminPasswordHash: 'hash',
     cutoffDay: 1,
     createdAt: '2026-10-01T00:00:00.000Z',
+    plan: 'FREE',
   };
   const hogares = {
     obtener: async () => hogar,

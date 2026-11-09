@@ -27,6 +27,10 @@ const rolSchema = z.object({
   rol: z.enum(['ADMIN', 'MIEMBRO']),
 });
 
+const planSchema = z.object({
+  plan: z.enum(['FREE', 'PREMIUM']),
+});
+
 export function householdsRoutes(app: Hono<AppEnv>): void {
   app.get('/households', auth, async (c) => {
     const hogares = await c.var.container.gestionarHogar.listar({
@@ -77,6 +81,16 @@ export function householdsRoutes(app: Hono<AppEnv>): void {
       hogarId: c.req.param('hid'),
       usuarioId: c.var.usuarioId,
       cutoffDay: body.cutoffDay,
+    });
+    return c.json(hogar);
+  });
+
+  app.patch('/households/:hid/plan', auth, async (c) => {
+    const body = planSchema.parse(await c.req.json());
+    const hogar = await c.var.container.gestionarHogar.configurarPlan({
+      hogarId: c.req.param('hid'),
+      usuarioId: c.var.usuarioId,
+      plan: body.plan,
     });
     return c.json(hogar);
   });

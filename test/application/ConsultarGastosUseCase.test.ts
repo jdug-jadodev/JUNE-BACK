@@ -24,6 +24,7 @@ const hogar: Hogar = {
   adminPasswordHash: 'hash',
   cutoffDay: 29,
   createdAt: '2026-10-01T00:00:00.000Z',
+  plan: 'FREE',
 };
 
 function dependencias(esMiembro: boolean) {

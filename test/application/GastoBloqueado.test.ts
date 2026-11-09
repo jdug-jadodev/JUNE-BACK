@@ -49,6 +49,7 @@ function crearDependencias() {
       adminPasswordHash: 'hash',
       cutoffDay: 1,
       createdAt: '2026-08-01T00:00:00.000Z',
+      plan: 'FREE',
     }),
   } as unknown as HogarRepositorioPort;
 

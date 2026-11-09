@@ -1,4 +1,5 @@
 import type { Hogar } from '../../../domain/entities/Hogar';
+import type { Plan } from '../../../domain/enums/Plan';
 import type { HogarRepositorioPort } from '../../../domain/ports/out/HogarRepositorioPort';
 import { HogarMapper, type HogarRow } from '../mappers/mappers';
 
@@ -69,6 +70,13 @@ export class HogarD1Adapter implements HogarRepositorioPort {
     await this.db
       .prepare(`UPDATE households SET cutoff_day = ? WHERE id = ?`)
       .bind(cutoffDay, id)
+      .run();
+  }
+
+  async actualizarPlan(id: string, plan: Plan): Promise<void> {
+    await this.db
+      .prepare(`UPDATE households SET plan = ? WHERE id = ?`)
+      .bind(plan, id)
       .run();
   }
 }

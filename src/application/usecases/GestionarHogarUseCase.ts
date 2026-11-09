@@ -1,4 +1,5 @@
 import type { Hogar } from '../../domain/entities/Hogar';
+import type { Plan } from '../../domain/enums/Plan';
 import type { GestionarHogarPort } from '../../domain/ports/in/GestionarHogarPort';
 import type { HogarRepositorioPort } from '../../domain/ports/out/HogarRepositorioPort';
 import type { MiembroRepositorioPort } from '../../domain/ports/out/MiembroRepositorioPort';
@@ -24,6 +25,7 @@ export class GestionarHogarUseCase implements GestionarHogarPort {
       adminPasswordHash: null,
       cutoffDay: 1,
       createdAt: ahora,
+      plan: 'FREE',
     };
 
     await this.hogares.crear(hogar);
@@ -81,6 +83,21 @@ export class GestionarHogarUseCase implements GestionarHogarPort {
 
     await this.hogares.actualizarCorte(input.hogarId, input.cutoffDay);
     return { ...hogar, cutoffDay: input.cutoffDay };
+  }
+
+  async configurarPlan(input: {
+    hogarId: string;
+    usuarioId: string;
+    plan: Plan;
+  }): Promise<Hogar> {
+    const miembro = await this.miembros.buscar(input.hogarId, input.usuarioId);
+    if (!miembro || miembro.rol !== 'ADMIN') throw new PermisoDenegadoError();
+
+    const hogar = await this.hogares.obtener(input.hogarId);
+    if (!hogar) throw new NoEncontradoError('Hogar no encontrado');
+
+    await this.hogares.actualizarPlan(input.hogarId, input.plan);
+    return { ...hogar, plan: input.plan };
   }
 }
 

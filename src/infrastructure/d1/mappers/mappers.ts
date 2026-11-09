@@ -26,6 +26,9 @@ export interface HogarRow {
   admin_password_hash: string | null;
   cutoff_day: number;
   created_at: string;
+  plan: string | null;
+  plan_expires_at: string | null;
+  plan_source: string | null;
 }
 
 export interface MiembroRow {
@@ -72,6 +75,9 @@ export const HogarMapper = {
       adminPasswordHash: row.admin_password_hash,
       cutoffDay: row.cutoff_day ?? 1,
       createdAt: row.created_at,
+      plan: (row.plan ?? 'FREE') as Hogar['plan'],
+      planExpiresAt: row.plan_expires_at ?? null,
+      planSource: row.plan_source ?? null,
     };
   },
 };

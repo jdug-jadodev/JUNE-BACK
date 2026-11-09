@@ -19,6 +19,7 @@ const hogar: Hogar = {
   adminPasswordHash: null,
   cutoffDay: 29,
   createdAt: '2026-01-01T00:00:00.000Z',
+  plan: 'FREE',
 };
 
 const miembro: Miembro = {
