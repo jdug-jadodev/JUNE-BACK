@@ -21,6 +21,8 @@ export interface ProgresoCicloIA {
 export interface AnalisisIA {
   ciclos: string[];
   progreso: ProgresoCicloIA;
+  /** Personas en casa usadas para calcular los montos (deducidas o ajustadas). */
+  personasEstimadas: number;
   estado: string;
   sugerencias: SugerenciaIA[];
   recomendacion: string;

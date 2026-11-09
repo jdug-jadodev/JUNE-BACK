@@ -5,5 +5,7 @@ export interface AnalizarConIAPort {
     hogarId: string;
     usuarioId: string;
     ciclos?: string[];
+    /** Personas en casa indicadas localmente por la persona (1-15). */
+    personas?: number;
   }): Promise<AnalisisIA>;
 }

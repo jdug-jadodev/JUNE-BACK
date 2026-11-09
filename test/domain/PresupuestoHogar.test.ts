@@ -90,6 +90,26 @@ describe('inferirPerfilHogar', () => {
     expect(perfil.referencias[3].montoCents).toBe(pesos(90_000) * perfil.personasEstimadas);
   });
 
+  it('respeta el número de personas ajustado localmente', () => {
+    const perfil = inferirPerfilHogar(crearAnalisis(), pesos(15_900_000), 4, 9);
+
+    expect(perfil.personasEstimadas).toBe(9);
+    expect(perfil.personasAjustadas).toBe(true);
+
+    const sinTopeNueve = inferirPerfilHogar(crearAnalisis(), 0, 4, 9);
+    const sinTopeSeis = inferirPerfilHogar(crearAnalisis(), 0, 4, 6);
+    expect(sinTopeNueve.referencias[0].montoCents).toBeGreaterThan(
+      sinTopeSeis.referencias[0].montoCents,
+    );
+  });
+
+  it('ignora valores fuera de rango', () => {
+    const perfil = inferirPerfilHogar(crearAnalisis(), pesos(15_900_000), 4, 0);
+
+    expect(perfil.personasAjustadas).toBe(false);
+    expect(perfil.personasEstimadas).toBe(6);
+  });
+
   it('detecta bebés, adolescentes y mascotas en los gastos', () => {
     const analisis = crearAnalisis({
       categorias: [

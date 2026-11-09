@@ -24,6 +24,8 @@ const categoriaSchema = z.object({
 
 const aiInsightsSchema = z.object({
   ciclos: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
+  /** Personas en casa ajustadas por la persona. No se guarda en la base. */
+  personas: z.number().int().min(1).max(15).optional(),
 });
 
 const filtroSchema = z.object({
@@ -110,6 +112,7 @@ export function expensesRoutes(app: Hono<AppEnv>): void {
       hogarId: c.req.param('hid'),
       usuarioId: c.var.usuarioId,
       ciclos: body.ciclos,
+      personas: body.personas,
     });
     return c.json(analisis);
   });

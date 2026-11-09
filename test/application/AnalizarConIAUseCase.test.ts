@@ -146,6 +146,20 @@ describe('AnalizarConIAUseCase', () => {
     expect(resultado.sugerencias[3].montoCents).toBe(54_000_000);
   });
 
+  it('usa el número de personas que la app envía desde el teléfono', async () => {
+    const { useCase } = crearCaso({ miembros: 3 });
+
+    const resultado = await useCase.analizar({
+      hogarId: 'h1',
+      usuarioId: 'u1',
+      personas: 8,
+    });
+
+    expect(resultado.personasEstimadas).toBe(8);
+    expect(resultado.sugerencias[0].montoCents).toBe(24_000_000);
+    expect(resultado.sugerencias[3].montoCents).toBe(72_000_000);
+  });
+
   it('falla si no hay IA disponible', async () => {
     const { useCase } = crearCaso({ iaNull: true });
 

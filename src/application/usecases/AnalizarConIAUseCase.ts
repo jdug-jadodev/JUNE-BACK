@@ -39,6 +39,7 @@ export class AnalizarConIAUseCase implements AnalizarConIAPort {
     hogarId: string;
     usuarioId: string;
     ciclos?: string[];
+    personas?: number;
   }): Promise<AnalisisIA> {
     const analisis = await this.consultarAnalisis.ejecutar({
       hogarId: input.hogarId,
@@ -50,7 +51,12 @@ export class AnalizarConIAUseCase implements AnalizarConIAPort {
     const numeroMiembros = (await this.miembros.listar(input.hogarId)).length;
     const ingresoMensualCents = this.ingresoMensual(listaIngresos);
     const progreso = this.progreso(analisis, ingresoMensualCents);
-    const perfil = inferirPerfilHogar(analisis, ingresoMensualCents, numeroMiembros);
+    const perfil = inferirPerfilHogar(
+      analisis,
+      ingresoMensualCents,
+      numeroMiembros,
+      input.personas,
+    );
 
     const huella = this.fingerprint(analisis.ciclos, analisis, listaIngresos, perfil);
     const cache = await this.analisisIA.buscar(input.hogarId, huella);
@@ -59,6 +65,7 @@ export class AnalizarConIAUseCase implements AnalizarConIAPort {
       return {
         ciclos: analisis.ciclos,
         progreso,
+        personasEstimadas: perfil.personasEstimadas,
         estado: resultado.estado,
         sugerencias: resultado.sugerencias,
         recomendacion: resultado.recomendacion,
@@ -89,6 +96,7 @@ export class AnalizarConIAUseCase implements AnalizarConIAPort {
     return {
       ciclos: analisis.ciclos,
       progreso,
+      personasEstimadas: perfil.personasEstimadas,
       estado: resultado.estado,
       sugerencias: resultado.sugerencias,
       recomendacion: resultado.recomendacion,
@@ -103,7 +111,7 @@ export class AnalizarConIAUseCase implements AnalizarConIAPort {
     perfil: PerfilHogar,
   ): string {
     return JSON.stringify({
-      version: 4,
+      version: 5,
       ciclos: [...ciclos].sort(),
       totalCents: analisis.resumen.totalCents,
       cantidad: analisis.resumen.cantidad,
@@ -202,7 +210,9 @@ export class AnalizarConIAUseCase implements AnalizarConIAPort {
 
     lineas.push('Perfil estimado del hogar (deducido de los datos, no preguntado):');
     lineas.push(
-      `- Personas estimadas: ${perfil.personasEstimadas} (${perfil.miembrosRegistrados} con cuenta en la app).`,
+      perfil.personasAjustadas
+        ? `- Personas en casa (ajustado por la persona): ${perfil.personasEstimadas}.`
+        : `- Personas estimadas: ${perfil.personasEstimadas} (${perfil.miembrosRegistrados} con cuenta en la app).`,
     );
     if (perfil.hayNinos) lineas.push('- Hay niños en el hogar (colegio, útiles o gastos infantiles).');
     if (perfil.hayAdolescentes) lineas.push('- Hay adolescentes o jóvenes (universidad, mesada).');

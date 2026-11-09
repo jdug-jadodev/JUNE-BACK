@@ -7,6 +7,8 @@ export interface PerfilHogar {
   miembrosRegistrados: number;
   /** Personas que probablemente viven en el hogar (incluye quienes no usan la app). */
   personasEstimadas: number;
+  /** true si la persona ajustó el número manualmente (solo en su teléfono). */
+  personasAjustadas: boolean;
   hayNinos: boolean;
   hayAdolescentes: boolean;
   hayBebe: boolean;
@@ -109,6 +111,7 @@ export function inferirPerfilHogar(
   analisis: Analisis,
   ingresoMensualCents: number,
   miembrosRegistrados: number,
+  personasAjustadas?: number,
 ): PerfilHogar {
   const ciclos = Math.max(1, analisis.ciclos.length);
   const dias = Math.max(1, analisis.proyeccion.diasTranscurridos);
@@ -136,7 +139,15 @@ export function inferirPerfilHogar(
     dias >= 5 && mercadoMensualCents > 0
       ? Math.round(mercadoMensualCents / perCapitaMercado(ingresoMensualCents))
       : 0;
-  const personasEstimadas = Math.min(12, Math.max(1, miembrosRegistrados, porMercado));
+  const ajustadas =
+    typeof personasAjustadas === 'number' &&
+    Number.isInteger(personasAjustadas) &&
+    personasAjustadas >= 1 &&
+    personasAjustadas <= 15
+      ? personasAjustadas
+      : null;
+  const personasEstimadas =
+    ajustadas ?? Math.min(12, Math.max(1, miembrosRegistrados, porMercado));
 
   const fijosCiclo = analisis.resumen.fijosCents / ciclos;
   const cargaFijaPct =
@@ -194,6 +205,7 @@ export function inferirPerfilHogar(
   return {
     miembrosRegistrados,
     personasEstimadas,
+    personasAjustadas: ajustadas !== null,
     hayNinos,
     hayAdolescentes,
     hayBebe,
