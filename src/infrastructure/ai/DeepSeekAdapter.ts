@@ -1,4 +1,5 @@
 import type { ConceptoCatalogo } from '../../domain/entities/AIClasificacion';
+import type { PeriodicidadIA, SugerenciaIA } from '../../domain/entities/AnalisisIA';
 
 export interface ResultadoIAClasificacion {
   termino: string;
@@ -13,8 +14,14 @@ export interface RespuestaIA {
   tokensOut: number;
 }
 
-export interface RespuestaTextoIA {
-  texto: string;
+export interface ResultadoAnalisisIA {
+  estado: string;
+  sugerencias: SugerenciaIA[];
+  recomendacion: string;
+}
+
+export interface RespuestaAnalisisIA {
+  resultado: ResultadoAnalisisIA;
   tokensIn: number;
   tokensOut: number;
 }
@@ -36,16 +43,15 @@ const CLASIFICACION_PROMPT = [
 ].join('\n');
 
 const ANALISIS_PROMPT = [
-  'Eres un asesor financiero amable para una familia en Colombia.',
-  'Recibes un resumen de los gastos del hogar y sus ingresos.',
-  'Debes: detectar patrones de gasto, comparar gastos contra ingresos y dar ideas para gastar menos sin sacrificar lo importante.',
+  'Eres un asesor financiero para una familia en Colombia.',
+  'Recibes datos del ciclo de gastos y los ingresos.',
+  'Debes devolver ÚNICAMENTE JSON válido, sin texto adicional, con esta forma:',
+  '{"estado":"una frase corta","sugerencias":[{"categoria":"...","montoCents":0,"periodicidad":"SEMANAL","nota":"..."}],"recomendacion":"una frase de acción"}',
   'Reglas:',
-  '- Nunca digas "deberías", "estás gastando demasiado" ni regañes.',
-  '- Compara contra el historial propio, no contra metas impuestas.',
-  '- Da UNA sola recomendación práctica y concreta.',
-  '- Usa cifras completas en pesos colombianos.',
-  '- Responde en un texto corto y claro (máximo 4 párrafos), con un tono cálido.',
-  '- Termina con una sola línea de acción.',
+  '- "estado": una sola frase útil y nueva (NO repitas que vivienda es lo más caro; enfócate en lo que no es obvio).',
+  '- "sugerencias": entre 3 y 5 montos sugeridos SOLO para categorías discrecionales (gusticos, salidas/ocio, viajes, restaurantes, ropa). Calcula montos realistas en centavos según el ingreso y los días que faltan. "periodicidad" es SEMANAL o MENSUAL.',
+  '- "recomendacion": una sola frase concreta de acción.',
+  '- Sin regañar, sin "deberías". Montos en pesos colombianos.',
 ].join('\n');
 
 export class DeepSeekAdapter {
@@ -73,15 +79,19 @@ export class DeepSeekAdapter {
     };
   }
 
-  async analizar(resumen: string): Promise<RespuestaTextoIA> {
+  async analizar(resumen: string): Promise<RespuestaAnalisisIA> {
     const { contenido, tokensIn, tokensOut } = await this.completar(
       ANALISIS_PROMPT,
       resumen,
-      1200,
+      800,
       0.3,
     );
 
-    return { texto: contenido.trim(), tokensIn, tokensOut };
+    return {
+      resultado: this.parsearAnalisis(contenido),
+      tokensIn,
+      tokensOut,
+    };
   }
 
   private async completar(
@@ -104,6 +114,7 @@ export class DeepSeekAdapter {
         ],
         temperature,
         max_tokens: maxTokens,
+        response_format: { type: 'json_object' },
       }),
     });
 
@@ -139,6 +150,38 @@ export class DeepSeekAdapter {
         }));
     } catch {
       return [];
+    }
+  }
+
+  private parsearAnalisis(content: string): ResultadoAnalisisIA {
+    try {
+      const json = JSON.parse(content) as {
+        estado?: string;
+        sugerencias?: Array<{
+          categoria?: string;
+          montoCents?: number;
+          periodicidad?: string;
+          nota?: string;
+        }>;
+        recomendacion?: string;
+      };
+
+      const sugerencias: SugerenciaIA[] = (json.sugerencias ?? [])
+        .filter((s) => typeof s.categoria === 'string' && typeof s.montoCents === 'number')
+        .map((s) => ({
+          categoria: s.categoria as string,
+          montoCents: Math.max(0, Math.round(s.montoCents as number)),
+          periodicidad: (s.periodicidad === 'MENSUAL' ? 'MENSUAL' : 'SEMANAL') as PeriodicidadIA,
+          nota: typeof s.nota === 'string' ? s.nota : '',
+        }));
+
+      return {
+        estado: typeof json.estado === 'string' ? json.estado : '',
+        sugerencias,
+        recomendacion: typeof json.recomendacion === 'string' ? json.recomendacion : '',
+      };
+    } catch {
+      return { estado: '', sugerencias: [], recomendacion: '' };
     }
   }
 }

@@ -1,12 +1,12 @@
 import type { Analisis } from '../../domain/entities/Analisis';
-import type { AnalisisIA } from '../../domain/entities/AnalisisIA';
+import type { AnalisisIA, ProgresoCicloIA, SugerenciaIA } from '../../domain/entities/AnalisisIA';
 import type { Ingreso } from '../../domain/entities/Ingreso';
 import type { AnalizarConIAPort } from '../../domain/ports/in/AnalizarConIAPort';
 import type { ConsultarAnalisisPort } from '../../domain/ports/in/ConsultarAnalisisPort';
 import type { AIClasificacionRepositorioPort } from '../../domain/ports/out/AIClasificacionRepositorioPort';
 import type { AnalisisIARepositorioPort } from '../../domain/ports/out/AnalisisIARepositorioPort';
 import type { IngresoRepositorioPort } from '../../domain/ports/out/IngresoRepositorioPort';
-import type { DeepSeekAdapter } from '../../infrastructure/ai/DeepSeekAdapter';
+import type { DeepSeekAdapter, ResultadoAnalisisIA } from '../../infrastructure/ai/DeepSeekAdapter';
 import { hayPresupuesto, mesActual } from '../../domain/rules/PresupuestoIA';
 import { DomainError } from '../../exception/errors';
 import { formatearPesos } from './helpers/formatearPesos';
@@ -33,14 +33,19 @@ export class AnalizarConIAUseCase implements AnalizarConIAPort {
     });
 
     const listaIngresos = await this.ingresos.listar(input.hogarId);
+    const ingresoMensualCents = this.ingresoMensual(listaIngresos);
+    const progreso = this.progreso(analisis, ingresoMensualCents);
 
     const huella = this.fingerprint(analisis.ciclos, analisis, listaIngresos);
     const cache = await this.analisisIA.buscar(input.hogarId, huella);
     if (cache !== null) {
+      const resultado = this.parsearCache(cache);
       return {
-        texto: cache,
         ciclos: analisis.ciclos,
-        generadoEl: new Date().toISOString(),
+        progreso,
+        estado: resultado.estado,
+        sugerencias: resultado.sugerencias,
+        recomendacion: resultado.recomendacion,
         cacheado: true,
       };
     }
@@ -58,16 +63,19 @@ export class AnalizarConIAUseCase implements AnalizarConIAPort {
       );
     }
 
-    const resumen = this.resumenParaPrompt(analisis, listaIngresos);
+    const resumen = this.resumenParaPrompt(analisis, listaIngresos, ingresoMensualCents, progreso);
     const resp = await this.ia.analizar(resumen);
+    const resultado = this.limpiarResultado(resp.resultado, listaIngresos, ingresoMensualCents);
 
-    await this.analisisIA.guardar(input.hogarId, huella, resp.texto);
+    await this.analisisIA.guardar(input.hogarId, huella, JSON.stringify(resultado));
     await this.uso.registrarUso(mesActual(), resp.tokensIn, resp.tokensOut);
 
     return {
-      texto: resp.texto,
       ciclos: analisis.ciclos,
-      generadoEl: new Date().toISOString(),
+      progreso,
+      estado: resultado.estado,
+      sugerencias: resultado.sugerencias,
+      recomendacion: resultado.recomendacion,
       cacheado: false,
     };
   }
@@ -83,43 +91,84 @@ export class AnalizarConIAUseCase implements AnalizarConIAPort {
     });
   }
 
-  private resumenParaPrompt(analisis: Analisis, ingresos: Ingreso[]): string {
+  private ingresoMensual(ingresos: Ingreso[]): number {
+    return ingresos.reduce((total, i) => {
+      return total + (i.periodicidad === 'QUINCENAL' ? i.montoCents * 2 : i.montoCents);
+    }, 0);
+  }
+
+  private progreso(analisis: Analisis, ingresoMensualCents: number): ProgresoCicloIA {
+    const p = analisis.proyeccion;
+    const diasRestantes = Math.max(0, p.diasTotales - p.diasTranscurridos);
+    const porcentajeIngreso =
+      ingresoMensualCents > 0
+        ? Math.round((analisis.resumen.totalCents / ingresoMensualCents) * 100)
+        : 0;
+
+    return {
+      diasTranscurridos: p.diasTranscurridos,
+      diasTotales: p.diasTotales,
+      diasRestantes,
+      totalCents: analisis.resumen.totalCents,
+      ingresoMensualCents,
+      porcentajeIngreso,
+    };
+  }
+
+  private parsearCache(cache: string): ResultadoAnalisisIA {
+    try {
+      const json = JSON.parse(cache) as ResultadoAnalisisIA;
+      return {
+        estado: json.estado ?? '',
+        sugerencias: json.sugerencias ?? [],
+        recomendacion: json.recomendacion ?? '',
+      };
+    } catch {
+      return { estado: '', sugerencias: [], recomendacion: '' };
+    }
+  }
+
+  /** Descarta sugerencias disparatadas (mayores al ingreso o negativas). */
+  private limpiarResultado(
+    resultado: ResultadoAnalisisIA,
+    _ingresos: Ingreso[],
+    ingresoMensualCents: number,
+  ): ResultadoAnalisisIA {
+    const tope = ingresoMensualCents > 0 ? ingresoMensualCents : Number.POSITIVE_INFINITY;
+    const sugerencias: SugerenciaIA[] = resultado.sugerencias
+      .filter((s) => s.montoCents > 0 && s.montoCents <= tope)
+      .slice(0, 5);
+
+    return {
+      estado: resultado.estado,
+      sugerencias,
+      recomendacion: resultado.recomendacion,
+    };
+  }
+
+  private resumenParaPrompt(
+    analisis: Analisis,
+    ingresos: Ingreso[],
+    ingresoMensualCents: number,
+    progreso: ProgresoCicloIA,
+  ): string {
     const lineas: string[] = [];
 
-    lineas.push(`Ciclos analizados: ${analisis.ciclos.join(', ')}`);
-    lineas.push(`Total gastado: ${formatearPesos(analisis.resumen.totalCents)}`);
+    lineas.push(`Ingreso mensual del hogar: ${formatearPesos(ingresoMensualCents)}`);
+    lineas.push(`Total gastado en el ciclo: ${formatearPesos(analisis.resumen.totalCents)}`);
     lineas.push(
-      `${analisis.resumen.cantidad} gastos en ${analisis.resumen.diasConRegistro} días`,
+      `Día ${progreso.diasTranscurridos} de ${progreso.diasTotales}; faltan ${progreso.diasRestantes} días.`,
     );
 
     lineas.push('');
-    lineas.push('Categorías:');
+    lineas.push('Gasto actual por categoría:');
     for (const c of analisis.categorias) {
-      lineas.push(`- ${c.nombre}: ${formatearPesos(c.totalCents)} (${c.cantidad} gastos)`);
+      lineas.push(`- ${c.nombre}: ${formatearPesos(c.totalCents)}`);
     }
 
-    const gusto = analisis.gustos[0];
-    if (gusto) {
-      lineas.push('');
-      lineas.push(
-        `Gusticos (pizza, mecato, postres, gaseosa, etc.): ${formatearPesos(gusto.totalCents)} en ${gusto.cantidad} gastos`,
-      );
-    }
-
-    if (analisis.sinClasificar.length > 0) {
-      lineas.push(`Sin clasificar: ${analisis.sinClasificar.length} tipos de gasto`);
-    }
-
-    lineas.push('');
     if (ingresos.length === 0) {
-      lineas.push('Ingresos: no se registraron ingresos todavía.');
-    } else {
-      lineas.push('Ingresos:');
-      for (const i of ingresos) {
-        const etiqueta = i.nombre ?? 'Ingreso';
-        const frecuencia = i.periodicidad === 'QUINCENAL' ? 'quincenal' : 'mensual';
-        lineas.push(`- ${etiqueta}: ${formatearPesos(i.montoCents)} ${frecuencia}`);
-      }
+      lineas.push('');
+      lineas.push('No hay ingresos registrados todavía.');
     }
 
     return lineas.join('\n');

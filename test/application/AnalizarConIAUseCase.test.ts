@@ -30,7 +30,7 @@ const analisis: Analisis = {
 function crearCaso(
   opciones: {
     cache?: string | null;
-    iaTexto?: string;
+    iaResultado?: { estado: string; sugerencias: Array<{ categoria: string; montoCents: number; periodicidad: string; nota: string }>; recomendacion: string };
     iaNull?: boolean;
   } = {},
 ) {
@@ -63,7 +63,11 @@ function crearCaso(
   const ia = opciones.iaNull
     ? null
     : ({
-        analizar: vi.fn(async () => ({ texto: opciones.iaTexto ?? 'resumen', tokensIn: 1000, tokensOut: 500 })),
+        analizar: vi.fn(async () => ({
+          resultado: opciones.iaResultado ?? { estado: '', sugerencias: [], recomendacion: '' },
+          tokensIn: 1000,
+          tokensOut: 500,
+        })),
       } as unknown as DeepSeekAdapter);
 
   return {
@@ -76,22 +80,36 @@ function crearCaso(
 
 describe('AnalizarConIAUseCase', () => {
   it('devuelve desde la caché sin gastar tokens', async () => {
-    const { useCase, ia, registrarUso } = crearCaso({ cache: 'ya analizado' });
+    const cache = JSON.stringify({
+      estado: 'hola',
+      sugerencias: [{ categoria: 'Viajes', montoCents: 300000, periodicidad: 'MENSUAL', nota: '' }],
+      recomendacion: 'aparta un monto',
+    });
+    const { useCase, ia, registrarUso } = crearCaso({ cache });
 
     const resultado = await useCase.analizar({ hogarId: 'h1', usuarioId: 'u1' });
 
-    expect(resultado.texto).toBe('ya analizado');
+    expect(resultado.estado).toBe('hola');
     expect(resultado.cacheado).toBe(true);
+    expect(resultado.progreso.diasRestantes).toBe(26);
     expect((ia as DeepSeekAdapter).analizar).not.toHaveBeenCalled();
     expect(registrarUso).not.toHaveBeenCalled();
   });
 
-  it('llama a la IA y guarda el resultado', async () => {
-    const { useCase, guardar, registrarUso } = crearCaso({ iaTexto: 'Este ciclo gastaste...' });
+  it('llama a la IA y guarda el resultado estructurado', async () => {
+    const { useCase, guardar, registrarUso } = crearCaso({
+      iaResultado: {
+        estado: 'corto',
+        sugerencias: [{ categoria: 'Gusticos', montoCents: 150000, periodicidad: 'SEMANAL', nota: '' }],
+        recomendacion: 'aparta semanal',
+      },
+    });
 
     const resultado = await useCase.analizar({ hogarId: 'h1', usuarioId: 'u1' });
 
-    expect(resultado.texto).toBe('Este ciclo gastaste...');
+    expect(resultado.estado).toBe('corto');
+    expect(resultado.sugerencias).toHaveLength(1);
+    expect(resultado.sugerencias[0].categoria).toBe('Gusticos');
     expect(resultado.cacheado).toBe(false);
     expect(guardar).toHaveBeenCalled();
     expect(registrarUso).toHaveBeenCalled();
