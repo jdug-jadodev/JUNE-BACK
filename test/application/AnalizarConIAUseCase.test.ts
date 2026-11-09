@@ -5,6 +5,7 @@ import type { ConsultarAnalisisPort } from '../../src/domain/ports/in/ConsultarA
 import type { AIClasificacionRepositorioPort } from '../../src/domain/ports/out/AIClasificacionRepositorioPort';
 import type { AnalisisIARepositorioPort } from '../../src/domain/ports/out/AnalisisIARepositorioPort';
 import type { IngresoRepositorioPort } from '../../src/domain/ports/out/IngresoRepositorioPort';
+import type { MiembroRepositorioPort } from '../../src/domain/ports/out/MiembroRepositorioPort';
 import type { DeepSeekAdapter } from '../../src/infrastructure/ai/DeepSeekAdapter';
 
 const analisis: Analisis = {
@@ -46,6 +47,10 @@ function crearCaso(
     eliminar: vi.fn(async () => undefined),
   } as unknown as IngresoRepositorioPort;
 
+  const miembros = {
+    listar: vi.fn(async () => [{}, {}, {}]),
+  } as unknown as MiembroRepositorioPort;
+
   const guardar = vi.fn(async () => undefined);
   const analisisIA = {
     buscar: vi.fn(async () => opciones.cache ?? null),
@@ -71,7 +76,7 @@ function crearCaso(
       } as unknown as DeepSeekAdapter);
 
   return {
-    useCase: new AnalizarConIAUseCase(consultarAnalisis, ingresos, analisisIA, uso, ia),
+    useCase: new AnalizarConIAUseCase(consultarAnalisis, ingresos, miembros, analisisIA, uso, ia),
     ia,
     guardar,
     registrarUso,

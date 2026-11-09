@@ -92,6 +92,7 @@ export function buildContainer(env: Env): Container {
   const analizarConIA = new AnalizarConIAUseCase(
     consultarAnalisis,
     ingresos,
+    miembros,
     analisisIA,
     aiClasificaciones,
     deepseek,

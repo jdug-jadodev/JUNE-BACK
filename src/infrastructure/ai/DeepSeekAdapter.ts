@@ -49,7 +49,7 @@ const ANALISIS_PROMPT = [
   '{"estado":"una frase corta","sugerencias":[{"categoria":"...","montoCents":0,"periodicidad":"SEMANAL","nota":"..."}],"recomendacion":"una frase de acción"}',
   'Reglas:',
   '- "estado": una sola frase útil y nueva (NO repitas que vivienda es lo más caro; enfócate en lo que no es obvio).',
-  '- "sugerencias": entre 3 y 5 montos sugeridos SOLO para categorías discrecionales (gusticos, salidas/ocio, viajes, restaurantes, ropa). Calcula montos realistas en centavos según el ingreso y los días que faltan. "periodicidad" es SEMANAL o MENSUAL.',
+  '- "sugerencias": entre 3 y 5 montos sugeridos SOLO para categorías discrecionales (gusticos, salidas/ocio, viajes, restaurantes, ropa). Calcula montos realistas en centavos PARA TODO EL HOGAR, considerando el número de integrantes y si hay niños o jóvenes. Ropa o restaurantes para 5 personas valen mucho más que para 1 (y suma el transporte si aplica). "periodicidad" es SEMANAL o MENSUAL.',
   '- "recomendacion": una sola frase concreta de acción.',
   '- Sin regañar, sin "deberías". Montos en pesos colombianos.',
 ].join('\n');

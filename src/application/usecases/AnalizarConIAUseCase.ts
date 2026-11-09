@@ -6,6 +6,7 @@ import type { ConsultarAnalisisPort } from '../../domain/ports/in/ConsultarAnali
 import type { AIClasificacionRepositorioPort } from '../../domain/ports/out/AIClasificacionRepositorioPort';
 import type { AnalisisIARepositorioPort } from '../../domain/ports/out/AnalisisIARepositorioPort';
 import type { IngresoRepositorioPort } from '../../domain/ports/out/IngresoRepositorioPort';
+import type { MiembroRepositorioPort } from '../../domain/ports/out/MiembroRepositorioPort';
 import type { DeepSeekAdapter, ResultadoAnalisisIA } from '../../infrastructure/ai/DeepSeekAdapter';
 import { hayPresupuesto, mesActual } from '../../domain/rules/PresupuestoIA';
 import { DomainError } from '../../exception/errors';
@@ -15,6 +16,7 @@ export class AnalizarConIAUseCase implements AnalizarConIAPort {
   constructor(
     private readonly consultarAnalisis: ConsultarAnalisisPort,
     private readonly ingresos: IngresoRepositorioPort,
+    private readonly miembros: MiembroRepositorioPort,
     private readonly analisisIA: AnalisisIARepositorioPort,
     private readonly uso: AIClasificacionRepositorioPort,
     private readonly ia: DeepSeekAdapter | null,
@@ -33,10 +35,12 @@ export class AnalizarConIAUseCase implements AnalizarConIAPort {
     });
 
     const listaIngresos = await this.ingresos.listar(input.hogarId);
+    const numeroMiembros = (await this.miembros.listar(input.hogarId)).length;
     const ingresoMensualCents = this.ingresoMensual(listaIngresos);
     const progreso = this.progreso(analisis, ingresoMensualCents);
+    const contexto = this.contextoHogar(analisis, numeroMiembros);
 
-    const huella = this.fingerprint(analisis.ciclos, analisis, listaIngresos);
+    const huella = this.fingerprint(analisis.ciclos, analisis, listaIngresos, numeroMiembros);
     const cache = await this.analisisIA.buscar(input.hogarId, huella);
     if (cache !== null) {
       const resultado = this.parsearCache(cache);
@@ -63,7 +67,7 @@ export class AnalizarConIAUseCase implements AnalizarConIAPort {
       );
     }
 
-    const resumen = this.resumenParaPrompt(analisis, listaIngresos, ingresoMensualCents, progreso);
+    const resumen = this.resumenParaPrompt(analisis, listaIngresos, ingresoMensualCents, progreso, contexto);
     const resp = await this.ia.analizar(resumen);
     const resultado = this.limpiarResultado(resp.resultado, listaIngresos, ingresoMensualCents);
 
@@ -80,16 +84,35 @@ export class AnalizarConIAUseCase implements AnalizarConIAPort {
     };
   }
 
-  private fingerprint(ciclos: string[], analisis: Analisis, ingresos: Ingreso[]): string {
+  private fingerprint(
+    ciclos: string[],
+    analisis: Analisis,
+    ingresos: Ingreso[],
+    numeroMiembros: number,
+  ): string {
     return JSON.stringify({
-      version: 2,
+      version: 3,
       ciclos: [...ciclos].sort(),
       totalCents: analisis.resumen.totalCents,
       cantidad: analisis.resumen.cantidad,
       categorias: analisis.categorias.map((c) => [c.categoria, c.totalCents]),
       gustos: analisis.gustos[0]?.totalCents ?? 0,
       ingresos: ingresos.map((i) => [i.id, i.montoCents, i.periodicidad]),
+      numeroMiembros,
     });
+  }
+
+  private contextoHogar(
+    analisis: Analisis,
+    numeroMiembros: number,
+  ): { numeroMiembros: number; hayEducacion: boolean; mercadoCents: number } {
+    const educacion = analisis.categorias.find((c) => c.categoria === 'educacion');
+    const mercado = analisis.categorias.find((c) => c.categoria === 'mercado');
+    return {
+      numeroMiembros,
+      hayEducacion: (educacion?.totalCents ?? 0) > 0,
+      mercadoCents: mercado?.totalCents ?? 0,
+    };
   }
 
   private ingresoMensual(ingresos: Ingreso[]): number {
@@ -152,9 +175,19 @@ export class AnalizarConIAUseCase implements AnalizarConIAPort {
     ingresos: Ingreso[],
     ingresoMensualCents: number,
     progreso: ProgresoCicloIA,
+    contexto: { numeroMiembros: number; hayEducacion: boolean; mercadoCents: number },
   ): string {
     const lineas: string[] = [];
 
+    lineas.push(`El hogar tiene ${contexto.numeroMiembros} integrantes.`);
+    if (contexto.hayEducacion) {
+      lineas.push('Hay gastos de educación (colegio/universidad), lo que sugiere niños o jóvenes en el hogar.');
+    }
+    if (contexto.mercadoCents > 0) {
+      lineas.push(`Gastaron ${formatearPesos(contexto.mercadoCents)} en mercado (alimentos).`);
+    }
+
+    lineas.push('');
     lineas.push(`Ingreso mensual del hogar: ${formatearPesos(ingresoMensualCents)}`);
     lineas.push(`Total gastado en el ciclo: ${formatearPesos(analisis.resumen.totalCents)}`);
     lineas.push(
