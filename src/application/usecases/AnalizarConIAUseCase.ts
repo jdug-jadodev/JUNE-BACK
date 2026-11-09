@@ -9,8 +9,20 @@ import type { IngresoRepositorioPort } from '../../domain/ports/out/IngresoRepos
 import type { MiembroRepositorioPort } from '../../domain/ports/out/MiembroRepositorioPort';
 import type { DeepSeekAdapter, ResultadoAnalisisIA } from '../../infrastructure/ai/DeepSeekAdapter';
 import { hayPresupuesto, mesActual } from '../../domain/rules/PresupuestoIA';
+import {
+  coincidirReferencia,
+  inferirPerfilHogar,
+  notaPorDefecto,
+  type PerfilHogar,
+} from '../../domain/rules/PresupuestoHogar';
 import { DomainError } from '../../exception/errors';
 import { formatearPesos } from './helpers/formatearPesos';
+
+interface ResultadoGuardado {
+  estado: string;
+  sugerencias: SugerenciaIA[];
+  recomendacion: string;
+}
 
 export class AnalizarConIAUseCase implements AnalizarConIAPort {
   constructor(
@@ -38,9 +50,9 @@ export class AnalizarConIAUseCase implements AnalizarConIAPort {
     const numeroMiembros = (await this.miembros.listar(input.hogarId)).length;
     const ingresoMensualCents = this.ingresoMensual(listaIngresos);
     const progreso = this.progreso(analisis, ingresoMensualCents);
-    const contexto = this.contextoHogar(analisis, numeroMiembros);
+    const perfil = inferirPerfilHogar(analisis, ingresoMensualCents, numeroMiembros);
 
-    const huella = this.fingerprint(analisis.ciclos, analisis, listaIngresos, numeroMiembros);
+    const huella = this.fingerprint(analisis.ciclos, analisis, listaIngresos, perfil);
     const cache = await this.analisisIA.buscar(input.hogarId, huella);
     if (cache !== null) {
       const resultado = this.parsearCache(cache);
@@ -67,9 +79,9 @@ export class AnalizarConIAUseCase implements AnalizarConIAPort {
       );
     }
 
-    const resumen = this.resumenParaPrompt(analisis, listaIngresos, ingresoMensualCents, progreso, contexto);
+    const resumen = this.resumenParaPrompt(analisis, listaIngresos, ingresoMensualCents, progreso, perfil);
     const resp = await this.ia.analizar(resumen);
-    const resultado = this.limpiarResultado(resp.resultado, listaIngresos, ingresoMensualCents);
+    const resultado = this.completarResultado(resp.resultado, perfil);
 
     await this.analisisIA.guardar(input.hogarId, huella, JSON.stringify(resultado));
     await this.uso.registrarUso(mesActual(), resp.tokensIn, resp.tokensOut);
@@ -88,31 +100,26 @@ export class AnalizarConIAUseCase implements AnalizarConIAPort {
     ciclos: string[],
     analisis: Analisis,
     ingresos: Ingreso[],
-    numeroMiembros: number,
+    perfil: PerfilHogar,
   ): string {
     return JSON.stringify({
-      version: 3,
+      version: 4,
       ciclos: [...ciclos].sort(),
       totalCents: analisis.resumen.totalCents,
       cantidad: analisis.resumen.cantidad,
       categorias: analisis.categorias.map((c) => [c.categoria, c.totalCents]),
       gustos: analisis.gustos[0]?.totalCents ?? 0,
       ingresos: ingresos.map((i) => [i.id, i.montoCents, i.periodicidad]),
-      numeroMiembros,
+      perfil: {
+        personas: perfil.personasEstimadas,
+        ninos: perfil.hayNinos,
+        adolescentes: perfil.hayAdolescentes,
+        bebe: perfil.hayBebe,
+        mascotas: perfil.hayMascotas,
+        cargaFijaPct: perfil.cargaFijaPct,
+        referencias: perfil.referencias.map((r) => [r.categoria, r.montoCents, r.periodicidad]),
+      },
     });
-  }
-
-  private contextoHogar(
-    analisis: Analisis,
-    numeroMiembros: number,
-  ): { numeroMiembros: number; hayEducacion: boolean; mercadoCents: number } {
-    const educacion = analisis.categorias.find((c) => c.categoria === 'educacion');
-    const mercado = analisis.categorias.find((c) => c.categoria === 'mercado');
-    return {
-      numeroMiembros,
-      hayEducacion: (educacion?.totalCents ?? 0) > 0,
-      mercadoCents: mercado?.totalCents ?? 0,
-    };
   }
 
   private ingresoMensual(ingresos: Ingreso[]): number {
@@ -139,12 +146,17 @@ export class AnalizarConIAUseCase implements AnalizarConIAPort {
     };
   }
 
-  private parsearCache(cache: string): ResultadoAnalisisIA {
+  private parsearCache(cache: string): ResultadoGuardado {
     try {
-      const json = JSON.parse(cache) as ResultadoAnalisisIA;
+      const json = JSON.parse(cache) as Partial<ResultadoGuardado>;
       return {
         estado: json.estado ?? '',
-        sugerencias: json.sugerencias ?? [],
+        sugerencias: Array.isArray(json.sugerencias)
+          ? json.sugerencias.filter(
+              (s): s is SugerenciaIA =>
+                typeof s?.categoria === 'string' && typeof s?.montoCents === 'number',
+            )
+          : [],
         recomendacion: json.recomendacion ?? '',
       };
     } catch {
@@ -152,20 +164,29 @@ export class AnalizarConIAUseCase implements AnalizarConIAPort {
     }
   }
 
-  /** Descarta sugerencias disparatadas (mayores al ingreso o negativas). */
-  private limpiarResultado(
+  /**
+   * Los montos los define el backend a partir del perfil del hogar. La IA solo
+   * aporta las notas; así nunca sugiere cantidades irreales para la familia.
+   */
+  private completarResultado(
     resultado: ResultadoAnalisisIA,
-    _ingresos: Ingreso[],
-    ingresoMensualCents: number,
-  ): ResultadoAnalisisIA {
-    const tope = ingresoMensualCents > 0 ? ingresoMensualCents : Number.POSITIVE_INFINITY;
-    const sugerencias: SugerenciaIA[] = resultado.sugerencias
-      .filter((s) => s.montoCents > 0 && s.montoCents <= tope)
-      .slice(0, 5);
+    perfil: PerfilHogar,
+  ): ResultadoGuardado {
+    const notas = new Map<string, string>();
+
+    for (const sugerencia of resultado.sugerencias) {
+      const referencia = coincidirReferencia(sugerencia.categoria, perfil.referencias);
+      if (referencia !== null && !notas.has(referencia.categoria) && sugerencia.nota.trim() !== '') {
+        notas.set(referencia.categoria, sugerencia.nota.trim());
+      }
+    }
 
     return {
       estado: resultado.estado,
-      sugerencias,
+      sugerencias: perfil.referencias.map((referencia) => ({
+        ...referencia,
+        nota: notas.get(referencia.categoria) ?? notaPorDefecto(referencia.categoria, referencia.periodicidad),
+      })),
       recomendacion: resultado.recomendacion,
     };
   }
@@ -175,16 +196,36 @@ export class AnalizarConIAUseCase implements AnalizarConIAPort {
     ingresos: Ingreso[],
     ingresoMensualCents: number,
     progreso: ProgresoCicloIA,
-    contexto: { numeroMiembros: number; hayEducacion: boolean; mercadoCents: number },
+    perfil: PerfilHogar,
   ): string {
     const lineas: string[] = [];
 
-    lineas.push(`El hogar tiene ${contexto.numeroMiembros} integrantes.`);
-    if (contexto.hayEducacion) {
-      lineas.push('Hay gastos de educación (colegio/universidad), lo que sugiere niños o jóvenes en el hogar.');
+    lineas.push('Perfil estimado del hogar (deducido de los datos, no preguntado):');
+    lineas.push(
+      `- Personas estimadas: ${perfil.personasEstimadas} (${perfil.miembrosRegistrados} con cuenta en la app).`,
+    );
+    if (perfil.hayNinos) lineas.push('- Hay niños en el hogar (colegio, útiles o gastos infantiles).');
+    if (perfil.hayAdolescentes) lineas.push('- Hay adolescentes o jóvenes (universidad, mesada).');
+    if (perfil.hayBebe) lineas.push('- Hay un bebé (pañales, fórmula o jardín).');
+    if (perfil.hayMascotas) lineas.push('- Hay mascotas.');
+    lineas.push(
+      `- Carga fija: ${perfil.cargaFijaPct}% del ingreso (costo de vida ${perfil.nivelCostoVida.toLowerCase()}).`,
+    );
+    if (perfil.mercadoMensualCents > 0) {
+      lineas.push(
+        `- Mercado estimado al mes: ${formatearPesos(perfil.mercadoMensualCents)} ` +
+          `(${formatearPesos(perfil.mercadoPorPersonaCents)} por persona).`,
+      );
     }
-    if (contexto.mercadoCents > 0) {
-      lineas.push(`Gastaron ${formatearPesos(contexto.mercadoCents)} en mercado (alimentos).`);
+    lineas.push(
+      `- Dinero razonable para gustos, ocio, restaurantes y ropa: ${formatearPesos(perfil.discrecionalMensualCents)} al mes.`,
+    );
+
+    lineas.push('');
+    lineas.push('Montos sugeridos (ya calculados para todo el hogar; NO los cambies):');
+    for (const r of perfil.referencias) {
+      const periodo = r.periodicidad === 'MENSUAL' ? 'al mes' : 'a la semana';
+      lineas.push(`- ${r.categoria}: ${formatearPesos(r.montoCents)} ${periodo}`);
     }
 
     lineas.push('');

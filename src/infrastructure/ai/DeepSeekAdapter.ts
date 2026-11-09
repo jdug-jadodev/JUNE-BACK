@@ -1,5 +1,4 @@
 import type { ConceptoCatalogo } from '../../domain/entities/AIClasificacion';
-import type { PeriodicidadIA, SugerenciaIA } from '../../domain/entities/AnalisisIA';
 
 export interface ResultadoIAClasificacion {
   termino: string;
@@ -14,9 +13,15 @@ export interface RespuestaIA {
   tokensOut: number;
 }
 
+/** La IA solo redacta; los montos los calcula el backend. */
+export interface SugerenciaTextoIA {
+  categoria: string;
+  nota: string;
+}
+
 export interface ResultadoAnalisisIA {
   estado: string;
-  sugerencias: SugerenciaIA[];
+  sugerencias: SugerenciaTextoIA[];
   recomendacion: string;
 }
 
@@ -44,14 +49,16 @@ const CLASIFICACION_PROMPT = [
 
 const ANALISIS_PROMPT = [
   'Eres un asesor financiero para una familia en Colombia.',
-  'Recibes datos del ciclo de gastos y los ingresos.',
+  'Recibes un perfil estimado del hogar (integrantes, si hay niños, carga fija) y los gastos del ciclo.',
+  'Los montos sugeridos YA vienen calculados en el mensaje. Tú NO calculas ni inventas montos.',
   'Debes devolver ÚNICAMENTE JSON válido, sin texto adicional, con esta forma:',
-  '{"estado":"una frase corta","sugerencias":[{"categoria":"...","montoCents":0,"periodicidad":"SEMANAL","nota":"..."}],"recomendacion":"una frase de acción"}',
+  '{"estado":"una frase corta","sugerencias":[{"categoria":"...","nota":"..."}],"recomendacion":"una frase de acción"}',
   'Reglas:',
-  '- "estado": una sola frase útil y nueva (NO repitas que vivienda es lo más caro; enfócate en lo que no es obvio).',
-  '- "sugerencias": entre 3 y 5 montos sugeridos SOLO para categorías discrecionales (gusticos, salidas/ocio, viajes, restaurantes, ropa). Calcula montos realistas en centavos PARA TODO EL HOGAR, considerando el número de integrantes y si hay niños o jóvenes. Ropa o restaurantes para 5 personas valen mucho más que para 1 (y suma el transporte si aplica). "periodicidad" es SEMANAL o MENSUAL.',
-  '- "recomendacion": una sola frase concreta de acción.',
-  '- Sin regañar, sin "deberías". Montos en pesos colombianos.',
+  '- "estado": una sola frase útil y nueva. Ten en cuenta los días que faltan y el tamaño del hogar. NO repitas que vivienda es lo más caro; enfócate en lo que no es obvio.',
+  '- "sugerencias": una entrada por CADA categoría de la lista "Montos sugeridos", copiando el nombre exacto. No agregues categorías nuevas ni cambies montos.',
+  '- "nota": máximo 12 palabras, explica para qué sirve ese monto EN ESTE hogar (menciona a la familia si aplica).',
+  '- "recomendacion": una sola frase concreta de acción, sin escribir montos.',
+  '- Sin regañar, sin "deberías", sin generalidades.',
 ].join('\n');
 
 export class DeepSeekAdapter {
@@ -159,19 +166,15 @@ export class DeepSeekAdapter {
         estado?: string;
         sugerencias?: Array<{
           categoria?: string;
-          montoCents?: number;
-          periodicidad?: string;
           nota?: string;
         }>;
         recomendacion?: string;
       };
 
-      const sugerencias: SugerenciaIA[] = (json.sugerencias ?? [])
-        .filter((s) => typeof s.categoria === 'string' && typeof s.montoCents === 'number')
+      const sugerencias: SugerenciaTextoIA[] = (json.sugerencias ?? [])
+        .filter((s) => typeof s.categoria === 'string')
         .map((s) => ({
           categoria: s.categoria as string,
-          montoCents: Math.max(0, Math.round(s.montoCents as number)),
-          periodicidad: (s.periodicidad === 'MENSUAL' ? 'MENSUAL' : 'SEMANAL') as PeriodicidadIA,
           nota: typeof s.nota === 'string' ? s.nota : '',
         }));
 

@@ -31,8 +31,13 @@ const analisis: Analisis = {
 function crearCaso(
   opciones: {
     cache?: string | null;
-    iaResultado?: { estado: string; sugerencias: Array<{ categoria: string; montoCents: number; periodicidad: string; nota: string }>; recomendacion: string };
+    iaResultado?: {
+      estado: string;
+      sugerencias: Array<{ categoria: string; nota: string }>;
+      recomendacion: string;
+    };
     iaNull?: boolean;
+    miembros?: number;
   } = {},
 ) {
   const consultarAnalisis = {
@@ -48,7 +53,7 @@ function crearCaso(
   } as unknown as IngresoRepositorioPort;
 
   const miembros = {
-    listar: vi.fn(async () => [{}, {}, {}]),
+    listar: vi.fn(async () => Array.from({ length: opciones.miembros ?? 3 }, () => ({}))),
   } as unknown as MiembroRepositorioPort;
 
   const guardar = vi.fn(async () => undefined);
@@ -101,11 +106,14 @@ describe('AnalizarConIAUseCase', () => {
     expect(registrarUso).not.toHaveBeenCalled();
   });
 
-  it('llama a la IA y guarda el resultado estructurado', async () => {
+  it('usa los montos calculados por el backend, no los de la IA', async () => {
     const { useCase, guardar, registrarUso } = crearCaso({
       iaResultado: {
         estado: 'corto',
-        sugerencias: [{ categoria: 'Gusticos', montoCents: 150000, periodicidad: 'SEMANAL', nota: '' }],
+        sugerencias: [
+          { categoria: 'Gusticos', nota: 'Antojos de la familia.' },
+          { categoria: 'Viajes', nota: 'Para un paseo.' },
+        ],
         recomendacion: 'aparta semanal',
       },
     });
@@ -113,11 +121,29 @@ describe('AnalizarConIAUseCase', () => {
     const resultado = await useCase.analizar({ hogarId: 'h1', usuarioId: 'u1' });
 
     expect(resultado.estado).toBe('corto');
-    expect(resultado.sugerencias).toHaveLength(1);
-    expect(resultado.sugerencias[0].categoria).toBe('Gusticos');
+    expect(resultado.sugerencias).toHaveLength(4);
+    expect(resultado.sugerencias.map((s) => s.categoria)).toEqual([
+      'Gusticos',
+      'Salidas y ocio',
+      'Restaurantes',
+      'Ropa y calzado',
+    ]);
+    // 3 integrantes, sin ingreso: $30.000 por persona a la semana.
+    expect(resultado.sugerencias[0].montoCents).toBe(9_000_000);
+    expect(resultado.sugerencias[0].nota).toBe('Antojos de la familia.');
+    expect(resultado.sugerencias[1].nota).not.toBe('');
     expect(resultado.cacheado).toBe(false);
     expect(guardar).toHaveBeenCalled();
     expect(registrarUso).toHaveBeenCalled();
+  });
+
+  it('escala los montos cuando el hogar tiene más integrantes', async () => {
+    const { useCase } = crearCaso({ miembros: 6 });
+
+    const resultado = await useCase.analizar({ hogarId: 'h1', usuarioId: 'u1' });
+
+    expect(resultado.sugerencias[0].montoCents).toBe(18_000_000);
+    expect(resultado.sugerencias[3].montoCents).toBe(54_000_000);
   });
 
   it('falla si no hay IA disponible', async () => {
