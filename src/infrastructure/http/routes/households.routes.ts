@@ -31,6 +31,12 @@ const planSchema = z.object({
   plan: z.enum(['FREE', 'PREMIUM']),
 });
 
+const ingresoNuevoSchema = z.object({
+  nombre: z.string().trim().max(60).optional().nullable(),
+  montoCents: z.number().int().positive(),
+  periodicidad: z.enum(['MENSUAL', 'QUINCENAL']),
+});
+
 export function householdsRoutes(app: Hono<AppEnv>): void {
   app.get('/households', auth, async (c) => {
     const hogares = await c.var.container.gestionarHogar.listar({
@@ -93,6 +99,48 @@ export function householdsRoutes(app: Hono<AppEnv>): void {
       plan: body.plan,
     });
     return c.json(hogar);
+  });
+
+  app.get('/households/:hid/incomes', auth, async (c) => {
+    const ingresos = await c.var.container.gestionarIngresos.listar({
+      hogarId: c.req.param('hid'),
+      usuarioId: c.var.usuarioId,
+    });
+    return c.json(ingresos);
+  });
+
+  app.post('/households/:hid/incomes', auth, async (c) => {
+    const body = ingresoNuevoSchema.parse(await c.req.json());
+    const ingreso = await c.var.container.gestionarIngresos.crear({
+      hogarId: c.req.param('hid'),
+      usuarioId: c.var.usuarioId,
+      nombre: body.nombre,
+      montoCents: body.montoCents,
+      periodicidad: body.periodicidad,
+    });
+    return c.json(ingreso, 201);
+  });
+
+  app.patch('/households/:hid/incomes/:iid', auth, async (c) => {
+    const body = ingresoNuevoSchema.parse(await c.req.json());
+    const ingreso = await c.var.container.gestionarIngresos.actualizar({
+      hogarId: c.req.param('hid'),
+      usuarioId: c.var.usuarioId,
+      ingresoId: c.req.param('iid'),
+      nombre: body.nombre,
+      montoCents: body.montoCents,
+      periodicidad: body.periodicidad,
+    });
+    return c.json(ingreso);
+  });
+
+  app.delete('/households/:hid/incomes/:iid', auth, async (c) => {
+    await c.var.container.gestionarIngresos.eliminar({
+      hogarId: c.req.param('hid'),
+      usuarioId: c.var.usuarioId,
+      ingresoId: c.req.param('iid'),
+    });
+    return c.body(null, 204);
   });
 
   app.get('/households/:hid/members', auth, async (c) => {

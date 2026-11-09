@@ -9,6 +9,7 @@ import type { RegistrarGastoPort } from '../../domain/ports/in/RegistrarGastoPor
 import type { ExportarGastosPort } from '../../domain/ports/in/ExportarGastosPort';
 import type { ClasificarTerminoPort } from '../../domain/ports/in/ClasificarTerminoPort';
 import type { GestionarCategoriasPort } from '../../domain/ports/in/GestionarCategoriasPort';
+import type { GestionarIngresosPort } from '../../domain/ports/in/GestionarIngresosPort';
 import type { SeguridadPort } from '../../domain/ports/in/SeguridadPort';
 import type { TokenPort } from '../../domain/ports/out/TokenPort';
 import { ActualizarGastoUseCase } from '../../application/usecases/ActualizarGastoUseCase';
@@ -17,6 +18,7 @@ import { ConsultarGastosUseCase } from '../../application/usecases/ConsultarGast
 import { ConsultarAnalisisUseCase } from '../../application/usecases/ConsultarAnalisisUseCase';
 import { ClasificarTerminoUseCase } from '../../application/usecases/ClasificarTerminoUseCase';
 import { GestionarCategoriasUseCase } from '../../application/usecases/GestionarCategoriasUseCase';
+import { GestionarIngresosUseCase } from '../../application/usecases/GestionarIngresosUseCase';
 import { EliminarGastoUseCase } from '../../application/usecases/EliminarGastoUseCase';
 import { ExportarGastosUseCase } from '../../application/usecases/ExportarGastosUseCase';
 import { GestionarHogarUseCase } from '../../application/usecases/GestionarHogarUseCase';
@@ -26,6 +28,7 @@ import { SeguridadUseCase } from '../../application/usecases/SeguridadUseCase';
 import { GastoD1Adapter } from '../d1/repositories/GastoD1Adapter';
 import { ClasificacionD1Adapter } from '../d1/repositories/ClasificacionD1Adapter';
 import { CategoriaPersonalizadaD1Adapter } from '../d1/repositories/CategoriaPersonalizadaD1Adapter';
+import { IngresoD1Adapter } from '../d1/repositories/IngresoD1Adapter';
 import { HogarD1Adapter } from '../d1/repositories/HogarD1Adapter';
 import { MiembroD1Adapter } from '../d1/repositories/MiembroD1Adapter';
 import { RefreshTokenD1Adapter } from '../d1/repositories/RefreshTokenD1Adapter';
@@ -46,6 +49,7 @@ export interface Container {
   consultarAnalisis: ConsultarAnalisisPort;
   clasificarTermino: ClasificarTerminoPort;
   gestionarCategorias: GestionarCategoriasPort;
+  gestionarIngresos: GestionarIngresosPort;
   exportarGastos: ExportarGastosPort;
   seguridad: SeguridadPort;
 }
@@ -54,6 +58,7 @@ export function buildContainer(env: Env): Container {
   const gastos = new GastoD1Adapter(env.DB);
   const clasificaciones = new ClasificacionD1Adapter(env.DB);
   const categorias = new CategoriaPersonalizadaD1Adapter(env.DB);
+  const ingresos = new IngresoD1Adapter(env.DB);
   const miembros = new MiembroD1Adapter(env.DB);
   const hogares = new HogarD1Adapter(env.DB);
   const usuarios = new UsuarioD1Adapter(env.DB);
@@ -85,6 +90,7 @@ export function buildContainer(env: Env): Container {
     ),
     clasificarTermino: new ClasificarTerminoUseCase(miembros, clasificaciones, categorias),
     gestionarCategorias: new GestionarCategoriasUseCase(miembros, categorias),
+    gestionarIngresos: new GestionarIngresosUseCase(miembros, ingresos),
     exportarGastos: new ExportarGastosUseCase(gastos, miembros, hogares),
     seguridad: new SeguridadUseCase(usuarios, passwordHash, refreshTokens),
   };
