@@ -7,9 +7,11 @@ import type {
   SinClasificarAnalisis,
 } from '../../domain/entities/Analisis';
 import type { CategoriaPersonalizada } from '../../domain/entities/CategoriaPersonalizada';
+import type { ConceptoCatalogo } from '../../domain/entities/AIClasificacion';
 import type { Categoria, Concepto, Necesidad, Tipo } from '../../domain/entities/Concepto';
 import type { Gasto } from '../../domain/entities/Gasto';
 import type { ConsultarAnalisisPort } from '../../domain/ports/in/ConsultarAnalisisPort';
+import type { ClasificarConIAPort } from '../../domain/ports/in/ClasificarConIAPort';
 import type { CategoriaPersonalizadaRepositorioPort } from '../../domain/ports/out/CategoriaPersonalizadaRepositorioPort';
 import type { ClasificacionRepositorioPort } from '../../domain/ports/out/ClasificacionRepositorioPort';
 import type { GastoRepositorioPort } from '../../domain/ports/out/GastoRepositorioPort';
@@ -17,7 +19,8 @@ import type { HogarRepositorioPort } from '../../domain/ports/out/HogarRepositor
 import type { MiembroRepositorioPort } from '../../domain/ports/out/MiembroRepositorioPort';
 import { CicloReglas } from '../../domain/rules/CicloReglas';
 import { normalizarTermino, resolverAlias } from '../../domain/rules/Clasificador';
-import { CATEGORIA_NOMBRE, CONCEPTOS_BY_ID } from '../../domain/rules/CatalogoConceptos';
+import { esPremium } from '../../domain/rules/PlanReglas';
+import { CATEGORIA_NOMBRE, CONCEPTOS, CONCEPTOS_BY_ID } from '../../domain/rules/CatalogoConceptos';
 import { NoEncontradoError, NoEsMiembroError } from '../../exception/errors';
 
 type AliasHogar = Record<string, string>;
@@ -32,6 +35,8 @@ type Ejemplos = Map<string, EjemploInterno>;
 
 interface ContextoClasificacion {
   alias: AliasHogar;
+  /** Clasificaciones hechas por la IA (cache + nuevas). */
+  iaAlias: AliasHogar;
   personalizadas: Map<string, CategoriaPersonalizada>;
 }
 
@@ -118,6 +123,7 @@ export class ConsultarAnalisisUseCase implements ConsultarAnalisisPort {
     private readonly hogares: HogarRepositorioPort,
     private readonly clasificaciones: ClasificacionRepositorioPort,
     private readonly categorias: CategoriaPersonalizadaRepositorioPort,
+    private readonly clasificarConIA: ClasificarConIAPort,
   ) {}
 
   async ejecutar(input: {
@@ -139,6 +145,7 @@ export class ConsultarAnalisisUseCase implements ConsultarAnalisisPort {
 
     const contexto: ContextoClasificacion = {
       alias: Object.fromEntries(overrides.map((o) => [o.termino, o.conceptoId])),
+      iaAlias: {},
       personalizadas: new Map(personalizadas.map((c) => [c.id, c])),
     };
 
@@ -170,6 +177,20 @@ export class ConsultarAnalisisUseCase implements ConsultarAnalisisPort {
     const actual = gastos.filter((g) => enCiclo(g, cicloActual.inicio));
     const anterior = gastos.filter((g) => enCiclo(g, cicloAnterior.inicio));
 
+    // Clasifica con IA los términos que el determinista no reconoce (solo premium).
+    if (esPremium(hogar)) {
+      const pendientes = this.terminosPendientes(objetivo, contexto);
+      if (pendientes.length > 0) {
+        contexto.iaAlias = Object.fromEntries(
+          await this.clasificarConIA.clasificar(
+            input.hogarId,
+            pendientes,
+            this.catalogoParaIA(personalizadas),
+          ),
+        );
+      }
+    }
+
     const resumen = this.resumen(objetivo, contexto);
     const categorias = this.categoriasAnalisis(objetivo, contexto);
     const gustos = this.gustos(objetivo, contexto);
@@ -198,7 +219,20 @@ export class ConsultarAnalisisUseCase implements ConsultarAnalisisPort {
   }
 
   private resolver(producto: string, contexto: ContextoClasificacion): ConceptoResuelto | null {
-    const resuelto = resolverAlias(producto, contexto.alias);
+    const determinista = this.aConcepto(resolverAlias(producto, contexto.alias), contexto);
+    if (determinista) return determinista;
+
+    // La IA solo llena lo que el determinista no reconoce.
+    const ia = this.aConcepto(resolverAlias(producto, contexto.iaAlias), contexto);
+    if (ia) return ia;
+
+    return null;
+  }
+
+  private aConcepto(
+    resuelto: { conceptoId: string } | null,
+    contexto: ContextoClasificacion,
+  ): ConceptoResuelto | null {
     if (!resuelto) return null;
 
     const base: Concepto | undefined = CONCEPTOS_BY_ID[resuelto.conceptoId];
@@ -224,6 +258,30 @@ export class ConsultarAnalisisUseCase implements ConsultarAnalisisPort {
       necesidad: 'NECESARIO',
       esGusto: personalizada.esGusto,
     };
+  }
+
+  private terminosPendientes(gastos: Gasto[], contexto: ContextoClasificacion): string[] {
+    const pendientes = new Set<string>();
+    for (const g of gastos) {
+      if (this.resolver(g.producto, contexto)) continue;
+      const termino = normalizarTermino(g.producto);
+      if (termino) pendientes.add(termino);
+    }
+    return [...pendientes];
+  }
+
+  private catalogoParaIA(personalizadas: CategoriaPersonalizada[]): ConceptoCatalogo[] {
+    const base = CONCEPTOS.map((c) => ({
+      id: c.id,
+      nombre: c.nombre,
+      categoria: c.categoria,
+    }));
+    const custom = personalizadas.map((c) => ({
+      id: c.id,
+      nombre: c.nombre,
+      categoria: c.id,
+    }));
+    return [...base, ...custom];
   }
 
   private resumen(gastos: Gasto[], contexto: ContextoClasificacion): Analisis['resumen'] {

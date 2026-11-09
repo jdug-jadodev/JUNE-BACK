@@ -7,6 +7,7 @@ import type { CategoriaPersonalizada } from '../../src/domain/entities/Categoria
 import type { ClasificacionHogar } from '../../src/domain/entities/ClasificacionHogar';
 import type { CategoriaPersonalizadaRepositorioPort } from '../../src/domain/ports/out/CategoriaPersonalizadaRepositorioPort';
 import type { ClasificacionRepositorioPort } from '../../src/domain/ports/out/ClasificacionRepositorioPort';
+import type { ClasificarConIAPort } from '../../src/domain/ports/in/ClasificarConIAPort';
 import type { GastoRepositorioPort } from '../../src/domain/ports/out/GastoRepositorioPort';
 import type { HogarRepositorioPort } from '../../src/domain/ports/out/HogarRepositorioPort';
 import type { MiembroRepositorioPort } from '../../src/domain/ports/out/MiembroRepositorioPort';
@@ -51,6 +52,10 @@ function crearCaso(
   gastosData: Gasto[],
   overrides: ClasificacionHogar[] = [],
   personalizadas: CategoriaPersonalizada[] = [],
+  opciones: {
+    plan?: 'FREE' | 'PREMIUM';
+    clasificarIA?: (terminos: string[]) => Map<string, string>;
+  } = {},
 ) {
   const gastos = {
     listar: vi.fn(async (_hogarId: string, _filtro?: unknown) => gastosData),
@@ -61,7 +66,7 @@ function crearCaso(
   } as unknown as MiembroRepositorioPort;
 
   const hogares = {
-    obtener: vi.fn(async () => hogar),
+    obtener: vi.fn(async () => ({ ...hogar, plan: opciones.plan ?? 'FREE' })),
   } as unknown as HogarRepositorioPort;
 
   const clasificaciones = {
@@ -77,7 +82,20 @@ function crearCaso(
     crear: vi.fn(async () => undefined),
   } as unknown as CategoriaPersonalizadaRepositorioPort;
 
-  return new ConsultarAnalisisUseCase(gastos, miembros, hogares, clasificaciones, categorias);
+  const clasificarConIA = {
+    clasificar: vi.fn(async (_hogarId: string, terminos: string[]) => {
+      return opciones.clasificarIA ? opciones.clasificarIA(terminos) : new Map<string, string>();
+    }),
+  } as unknown as ClasificarConIAPort;
+
+  return new ConsultarAnalisisUseCase(
+    gastos,
+    miembros,
+    hogares,
+    clasificaciones,
+    categorias,
+    clasificarConIA,
+  );
 }
 
 describe('ConsultarAnalisisUseCase', () => {
@@ -266,5 +284,52 @@ describe('ConsultarAnalisisUseCase', () => {
 
     // 4 del ciclo actual + 2 del anterior.
     expect(analisis.resumen.cantidad).toBe(6);
+  });
+
+  it('clasifica con IA los términos sin clasificar en premium', async () => {
+    const useCase = crearCaso(
+      [
+        gasto('x1', 'clases de piano', 200_000, '2026-11-01'),
+        gasto('x2', 'arriendo', 3_000_000, '2026-10-29'),
+      ],
+      [],
+      [],
+      {
+        plan: 'PREMIUM',
+        clasificarIA: (terminos) => new Map([['clases de piano', 'cursos']]),
+      },
+    );
+    const analisis = await useCase.ejecutar({ hogarId: 'h1', usuarioId: 'u1', hoy: '2026-11-05' });
+
+    expect(analisis.sinClasificar).toEqual([]);
+    const educacion = analisis.categorias.find((c) => c.categoria === 'educacion');
+    expect(educacion).toMatchObject({ totalCents: 200_000, cantidad: 1 });
+  });
+
+  it('no usa IA en el plan gratuito', async () => {
+    const useCase = crearCaso([
+      gasto('x1', 'clases de piano', 200_000, '2026-11-01'),
+    ]);
+    const analisis = await useCase.ejecutar({ hogarId: 'h1', usuarioId: 'u1', hoy: '2026-11-05' });
+
+    expect(analisis.sinClasificar).toHaveLength(1);
+    expect(analisis.sinClasificar[0].termino).toBe('clases de piano');
+  });
+
+  it('la corrección manual tiene prioridad sobre la IA', async () => {
+    const useCase = crearCaso(
+      [gasto('x1', 'clases de piano', 200_000, '2026-11-01')],
+      [{ termino: 'clases de piano', conceptoId: 'ayuda_familiar', nota: null }],
+      [],
+      {
+        plan: 'PREMIUM',
+        // Aunque la IA diga "cursos", la corrección manual gana.
+        clasificarIA: (terminos) => new Map([['clases de piano', 'cursos']]),
+      },
+    );
+    const analisis = await useCase.ejecutar({ hogarId: 'h1', usuarioId: 'u1', hoy: '2026-11-05' });
+
+    const hogar = analisis.categorias.find((c) => c.categoria === 'hogar');
+    expect(hogar?.totalCents).toBe(200_000);
   });
 });

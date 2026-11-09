@@ -17,6 +17,7 @@ import { AutenticacionUseCase } from '../../application/usecases/AutenticacionUs
 import { ConsultarGastosUseCase } from '../../application/usecases/ConsultarGastosUseCase';
 import { ConsultarAnalisisUseCase } from '../../application/usecases/ConsultarAnalisisUseCase';
 import { ClasificarTerminoUseCase } from '../../application/usecases/ClasificarTerminoUseCase';
+import { ClasificarConIAUseCase } from '../../application/usecases/ClasificarConIAUseCase';
 import { GestionarCategoriasUseCase } from '../../application/usecases/GestionarCategoriasUseCase';
 import { GestionarIngresosUseCase } from '../../application/usecases/GestionarIngresosUseCase';
 import { EliminarGastoUseCase } from '../../application/usecases/EliminarGastoUseCase';
@@ -28,6 +29,7 @@ import { SeguridadUseCase } from '../../application/usecases/SeguridadUseCase';
 import { GastoD1Adapter } from '../d1/repositories/GastoD1Adapter';
 import { ClasificacionD1Adapter } from '../d1/repositories/ClasificacionD1Adapter';
 import { CategoriaPersonalizadaD1Adapter } from '../d1/repositories/CategoriaPersonalizadaD1Adapter';
+import { AIClasificacionD1Adapter } from '../d1/repositories/AIClasificacionD1Adapter';
 import { IngresoD1Adapter } from '../d1/repositories/IngresoD1Adapter';
 import { HogarD1Adapter } from '../d1/repositories/HogarD1Adapter';
 import { MiembroD1Adapter } from '../d1/repositories/MiembroD1Adapter';
@@ -35,6 +37,7 @@ import { RefreshTokenD1Adapter } from '../d1/repositories/RefreshTokenD1Adapter'
 import { UsuarioD1Adapter } from '../d1/repositories/UsuarioD1Adapter';
 import { JwtAdapter } from '../auth/JwtAdapter';
 import { Pbkdf2Adapter } from '../auth/Pbkdf2Adapter';
+import { DeepSeekAdapter } from '../ai/DeepSeekAdapter';
 import type { Env } from './env';
 
 export interface Container {
@@ -59,12 +62,19 @@ export function buildContainer(env: Env): Container {
   const clasificaciones = new ClasificacionD1Adapter(env.DB);
   const categorias = new CategoriaPersonalizadaD1Adapter(env.DB);
   const ingresos = new IngresoD1Adapter(env.DB);
+  const aiClasificaciones = new AIClasificacionD1Adapter(env.DB);
   const miembros = new MiembroD1Adapter(env.DB);
   const hogares = new HogarD1Adapter(env.DB);
   const usuarios = new UsuarioD1Adapter(env.DB);
   const refreshTokens = new RefreshTokenD1Adapter(env.DB);
   const passwordHash = new Pbkdf2Adapter();
   const token = new JwtAdapter(env.JWT_SECRET);
+
+  const deepseek = env.DEEPSEEK_API_KEY
+    ? new DeepSeekAdapter(env.DEEPSEEK_API_KEY, env.DEEPSEEK_MODEL ?? 'deepseek-chat')
+    : null;
+  const presupuestoIA = Number.parseFloat(env.IA_PRESUPUESTO_MES_USD ?? '5') || 5;
+  const clasificarConIA = new ClasificarConIAUseCase(aiClasificaciones, deepseek, presupuestoIA);
 
   return {
     token,
@@ -87,6 +97,7 @@ export function buildContainer(env: Env): Container {
       hogares,
       clasificaciones,
       categorias,
+      clasificarConIA,
     ),
     clasificarTermino: new ClasificarTerminoUseCase(miembros, clasificaciones, categorias),
     gestionarCategorias: new GestionarCategoriasUseCase(miembros, categorias),
