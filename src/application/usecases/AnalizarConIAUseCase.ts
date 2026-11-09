@@ -82,6 +82,7 @@ export class AnalizarConIAUseCase implements AnalizarConIAPort {
 
   private fingerprint(ciclos: string[], analisis: Analisis, ingresos: Ingreso[]): string {
     return JSON.stringify({
+      version: 2,
       ciclos: [...ciclos].sort(),
       totalCents: analisis.resumen.totalCents,
       cantidad: analisis.resumen.cantidad,
